@@ -126,20 +126,21 @@ def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
     offset = 0
     while offset < (end - begin):
         point = begin + offset
-        if not suitable_scope(view.scope_name(point)): continue
 
-        for bracket in supported_brackets:
-            left, right = bracket
+        if suitable_scope(view.scope_name(point)):
 
-            if substring_matches_at(point, view, left):
-                brackets.append(_left_bracket(point, left))
-                offset += len(left) - 1
-                break
+            for bracket in supported_brackets:
+                left, right = bracket
 
-            if substring_matches_at(point, view, right):
-                brackets.append(_right_bracket(point, right))
-                offset += len(right) - 1
-                break
+                if substring_matches_at(point, view, left):
+                    brackets.append(_left_bracket(point, left))
+                    offset += len(left) - 1
+                    break
+
+                if substring_matches_at(point, view, right):
+                    brackets.append(_right_bracket(point, right))
+                    offset += len(right) - 1
+                    break
 
         offset += 1
 

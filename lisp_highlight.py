@@ -28,12 +28,8 @@ class LispSelectionListener(sublime_plugin.EventListener):
         #view.erase_regions("key2")
         ####
 
-        # TODO: For some unknown reason Sublime Text hangs up if the commented
-        #       line is used. This absolutely needs to be resolved as the scope
-        #       filtering will be one of the key features of the highlighter.
         def no_strings_and_comments(scope):
-            #return ("comment" not in scope) and ("string" not in scope)
-            return True
+            return ("comment" not in scope) and ("string" not in scope)
 
         for region, cursors in examined_regions:
 
