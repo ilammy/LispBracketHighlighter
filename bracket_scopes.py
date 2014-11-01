@@ -337,7 +337,6 @@ def compute_bracket_scopes(brackets, indices):
         return (o1 == o2) and (i1 == i2)
 
     scopes = []
-    matched_bracket_indices = set()
 
     indexed_brackets = zip(indices, brackets)
 
@@ -348,11 +347,8 @@ def compute_bracket_scopes(brackets, indices):
         for j, (right_index, right_bracket) in remaining_brackets:
             if _is_left(right_bracket): continue
 
-            if j in matched_bracket_indices: continue
-
             if indices_equal(left_index, right_index):
                 scopes.append(_bracket_scope(left_index, left_bracket, right_bracket))
-                matched_bracket_indices.add(j)
                 break
 
     return scopes
