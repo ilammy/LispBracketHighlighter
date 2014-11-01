@@ -114,8 +114,8 @@ def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
     Returns:
         [bracket] - a list of brackets that were found
     """
-    def substring_matches_at(offset, haystack, needle):
-        region = sublime.Region(offset, offset + len(needle))
+    def substring_matches_at(point, haystack, needle):
+        region = sublime.Region(point, point + len(needle))
         return haystack.substr(region) == needle
 
     # We assume that brackets match unambiguously: i.e., a bracket must not be
@@ -123,26 +123,24 @@ def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
 
     brackets = []
 
-    offset = 0
-    while offset < (end - begin):
-        point = begin + offset
+    point = begin
+    while point < end:
 
         if suitable_scope(view.scope_name(point)):
 
-            for bracket in supported_brackets:
-                left, right = bracket
+            for left, right in supported_brackets:
 
                 if substring_matches_at(point, view, left):
                     brackets.append(_left_bracket(point, left))
-                    offset += len(left) - 1
+                    point += len(left) - 1
                     break
 
                 if substring_matches_at(point, view, right):
                     brackets.append(_right_bracket(point, right))
-                    offset += len(right) - 1
+                    point += len(right) - 1
                     break
 
-        offset += 1
+        point += 1
 
     return brackets
 
