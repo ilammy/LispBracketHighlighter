@@ -219,7 +219,18 @@ def index_brackets(brackets, cursor):
     """
     def cursor_insertion_index(cursor, brackets):
         """Returns the index of the bracket immediately following the cursor."""
-        return bisect_left(map(_bracket_point, brackets), cursor)
+        # The bracket with the index returned will the first bracket that is
+        # located to the right of the cursor's point. Special arrangements
+        # need to be done for multicharacter left brackets to ensure that
+        # they are treated by bisect_left as 'located to the left' only
+        # when they are _entirely_ located to the left of the cursor.
+        def bracket_point(bracket):
+            if _is_right(bracket):
+                return _bracket_point(bracket)
+            else:
+                return _bracket_point(bracket) + len(_bracket_kind(bracket)) - 1
+
+        return bisect_left(map(bracket_point, brackets), cursor)
 
     cii = cursor_insertion_index(cursor, brackets)
 
