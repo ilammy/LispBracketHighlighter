@@ -4,7 +4,9 @@ import sublime_plugin
 from bracket_scopes \
     import cursors_of_view, expand_cursors_to_regions, merge_adjacent_regions, \
            index_brackets, locate_brackets, merge_bracket_indices, \
-           compute_bracket_scopes, filter_consistent_scopes
+           compute_bracket_scopes, filter_consistent_scopes, \
+           primary_mainline_scope, secondary_mainline_scopes, offside_scopes, \
+           adjacent_scopes, scope_bracket_regions, scope_expression_region
 
 scan_limit = 100
 
@@ -27,6 +29,12 @@ class LispSelectionListener(sublime_plugin.EventListener):
         #view.erase_regions("key")
         #view.erase_regions("key2")
         ####
+
+        view.erase_regions("pm")
+        view.erase_regions("sm")
+        view.erase_regions("os")
+        view.erase_regions("aj")
+        view.erase_regions("iv")
 
         def no_strings_and_comments(scope):
             return ("comment" not in scope) and ("string" not in scope)
@@ -55,4 +63,27 @@ class LispSelectionListener(sublime_plugin.EventListener):
             #print("cs: ", consistent_scopes)
             #print("is: ", inconsistent_scopes)
 
-            # TODO: apply scope coloring
+            pm_scope = primary_mainline_scope(consistent_scopes)
+
+            sm_scopes = secondary_mainline_scopes(consistent_scopes)
+
+            os_scopes = offside_scopes(consistent_scopes)
+
+            aj_scopes = adjacent_scopes(consistent_scopes, cursors)
+
+            def flatten(scope_pairs):
+                res = []
+                for a, b in scope_pairs:
+                    res.append(a)
+                    res.append(b)
+                return res
+
+            view.add_regions("pm", flatten(map(scope_bracket_regions, pm_scope)), "string")
+
+            view.add_regions("sm", flatten(map(scope_bracket_regions, sm_scopes)), "comment")
+
+            view.add_regions("os", flatten(map(scope_bracket_regions, os_scopes)), "constant.numeric")
+
+            view.add_regions("aj", map(scope_expression_region, aj_scopes), "entity.name.class")
+
+            view.add_regions("iv", flatten(map(scope_bracket_regions, inconsistent_scopes)), "invalid")

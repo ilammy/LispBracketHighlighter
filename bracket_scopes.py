@@ -316,6 +316,40 @@ def _bracket_scope(index, left_bracket, right_bracket):
     _, right_point, right_kind = right_bracket
     return index, (left_point, right_point), (left_kind, right_kind)
 
+def _index(scope): return scope[0]
+def _outer_index(scope): return scope[0][0]
+def _inner_index(scope): return scope[0][1]
+def _region(scope): return scope[1]
+def _kinds(scope): return scope[2]
+
+
+def scope_bracket_regions((index, (begin, end), (left, right))):
+    """Constructs sublime.Regions bound to the brackets of the scope.
+
+    Args:
+        scope - the scope in question
+
+    Returns:
+        left, right - a pair of sublime.Region objects that delimit
+                      the brackets of the scope
+    """
+    return sublime.Region(begin, begin + len(left)), \
+           sublime.Region(end,   end   + len(right))
+
+
+def scope_expression_region((index, (begin, end), (left, right))):
+    """Constructs a sublime.Region bound to the extents of the scope.
+
+    Args:
+        scope - the scope in question
+
+    Returns:
+        expression_scope
+            - the sublime.Region object that delimits the scope
+              (the inside of the scope as well as its brackets)
+    """
+    return sublime.Region(begin, end + len(right))
+
 
 def compute_bracket_scopes(brackets, indices):
     """Computes bracket scopes from brackets and their indices.
@@ -353,6 +387,9 @@ def compute_bracket_scopes(brackets, indices):
 
     return scopes
 
+#
+# Scope filters
+#
 
 def filter_consistent_scopes(bracket_scopes, supported_brackets):
     """Partitions scopes in two sets by consistency.
@@ -378,3 +415,66 @@ def filter_consistent_scopes(bracket_scopes, supported_brackets):
         return bracket_pair in supported_brackets
 
     return partition(is_consistent, bracket_scopes)
+
+
+def primary_mainline_scope(scopes):
+    """Locates the primary mainline scope in a list of scopes.
+
+    Args:
+        [scopes] - a list of scopes to be examined
+
+    Returns:
+        [scope] - the primary mainline scope (as a list, empty if not found)
+    """
+    return filter(lambda scope: _index(scope) == (0, 0), scopes)
+
+
+def secondary_mainline_scopes(scopes):
+    """Locates the secondary mainline scopes in a list of scopes.
+
+    Args:
+        [scopes] - a list of scopes to be examined
+
+    Returns:
+        [scopes] - a list of secondary mainline scopes
+    """
+    return filter(lambda scope: _inner_index(scope) == 0, scopes)
+
+
+def offside_scopes(scopes):
+    """Locates the offside scopes in a list of scopes.
+
+    Args:
+        [scopes] - a list of scopes to be examined
+
+    Returns:
+        [scopes] - a list of offside scopes
+    """
+    return filter(lambda scope: _inner_index(scope) > 0, scopes)
+
+
+def adjacent_scopes(scopes, cursors):
+    """Locates the scopes that are adjacent to the given set of cursors.
+
+    Args:
+        [scopes] - a list of scopes to be examined
+
+        [cursors] - a list of cursor points to be tested for adjacency
+
+    Returns:
+        [scopes] - a list of adjacent scopes
+    """
+    # Endpoints are points that touch the scope's brackets, but not its inside.
+    # E.g., for a scope like this: <<<< ... >>>>, the endpoints would be these:
+    # [<<<<) ... (>>>>], with brackets inclusive and parentheses exclusive.
+    def endpoints((index, (begin, end), (left, right))):
+        return range(begin, begin + len(left)) + \
+               range(end + 1, end + len(right) + 1)
+
+    result = []
+    for scope, endpoints in zip(scopes, map(endpoints, scopes)):
+        for cursor in cursors:
+            if cursor in endpoints:
+                result.append(scope)
+                break
+    return result
