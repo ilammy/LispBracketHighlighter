@@ -81,19 +81,19 @@ def merge_adjacent_regions(regions, cursors):
 # Brackets
 #
 
-# Brackets are represented as (type, offset, kind) tuples
+# Brackets are represented as (type, point, kind) tuples
 #   type  - 0 for left brackets, 1 for right ones
 #   point - a point in the view where the bracket is located
 #   kind  - textual representation of the bracket
 
-def _left_bracket(point, kind): return (0, point, kind)
-def _right_bracket(point, kind): return (1, point, kind)
+_LEFT_BRACKET = 0
+_RIGHT_BRACKET = 1
 
-def _is_left(bracket): return bracket[0] == 0
-def _is_right(bracket): return bracket[0] == 1
+def _left_bracket(point, kind): return (_LEFT_BRACKET, point, kind)
+def _right_bracket(point, kind): return (_RIGHT_BRACKET, point, kind)
 
-def _bracket_point(bracket): return bracket[1]
-def _bracket_kind(bracket): return bracket[2]
+def _is_left(bracket): return bracket[0] == _LEFT_BRACKET
+def _is_right(bracket): return bracket[0] == _RIGHT_BRACKET
 
 
 def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
@@ -224,11 +224,11 @@ def index_brackets(brackets, cursor):
         # need to be done for multicharacter left brackets to ensure that
         # they are treated by bisect_left as 'located to the left' only
         # when they are _entirely_ located to the left of the cursor.
-        def bracket_point(bracket):
-            if _is_right(bracket):
-                return _bracket_point(bracket)
+        def bracket_point((type, point, kind)):
+            if type == _RIGHT_BRACKET:
+                return point
             else:
-                return _bracket_point(bracket) + len(_bracket_kind(bracket)) - 1
+                return point + len(kind) - 1
 
         return bisect_left(map(bracket_point, brackets), cursor)
 
@@ -330,8 +330,6 @@ def _bracket_scope(index, left_bracket, right_bracket):
 def _index(scope): return scope[0]
 def _outer_index(scope): return scope[0][0]
 def _inner_index(scope): return scope[0][1]
-def _region(scope): return scope[1]
-def _kinds(scope): return scope[2]
 
 
 def scope_bracket_regions((index, (begin, end), (left, right))):
@@ -402,7 +400,7 @@ def compute_bracket_scopes(brackets, indices):
 # Scope filters
 #
 
-def filter_consistent_scopes(bracket_scopes, supported_brackets):
+def filter_consistent_scopes(scopes, supported_brackets):
     """Partitions scopes in two sets by consistency.
 
     A scope is consistent when its left and right brackets form a consistent
@@ -425,7 +423,7 @@ def filter_consistent_scopes(bracket_scopes, supported_brackets):
     def is_consistent((index, range, bracket_pair)):
         return bracket_pair in supported_brackets
 
-    return partition(is_consistent, bracket_scopes)
+    return partition(is_consistent, scopes)
 
 
 def primary_mainline_scope(scopes):
