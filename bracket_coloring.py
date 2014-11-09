@@ -6,43 +6,9 @@ from bracket_scopes \
     import is_not_consistent, is_primary_mainline, is_secondary_mainline, \
            is_offside, is_adjacent, scope_bracket_regions, \
            scope_expression_region
-#
-# Constants
-#
 
-class ColorMode:    # enumeration
-    NONE = 0
-    BRACKETS = 1
-    EXPRESSION = 2
-
-class AdjacentMode: # flags
-    NONE  = 0
-    LEFT  = 1
-    RIGHT = 2
-    BOTH  = 3
-
-class BracketKind: # enumeration
-    PRIMARY = 'primary_mode'
-    SECONDARY = 'secondary_mode'
-    OFFSIDE = 'offside_mode'
-    ADJACENT = 'adjacent_mode'
-    INCONSISTENT = 'inconsistent_mode'
-
-BACKGROUND = 'background'
-CURRENT_LINE = 'current_line'
-
-OFFSIDE_LIMIT = 'offside_limit'
-
-ADJACENT_SIDE = 'adjacent_side'
-
-class BracketColor:
-    PRIMARY = 'primary_color'
-    SECONDARY = 'secondary_colors'
-    OFFSIDE = 'offside_colors'
-    ADJACENT = 'adjacent_color'
-    INCONSISTENT = 'inconsistent_color'
-
-TRANSPARENT = -1
+from lisp_highlight_configuration \
+    import ColorMode, RegionColor, Configuration, is_transparent
 
 #Util
 def outer_index(((oi, ii), r, k)): return oi
@@ -83,21 +49,19 @@ def color_scopes(scopes, config, cursors, supported_brackets):
     """
     def color_type_of(scope):
         if is_not_consistent(scope, supported_brackets):
-            return BracketKind.INCONSISTENT, None
+            return RegionColor.INCONSISTENT, None
 
         if is_primary_mainline(scope):
-            return BracketKind.PRIMARY, None
+            return RegionColor.PRIMARY, None
 
         if is_secondary_mainline(scope):
-            return BracketKind.SECONDARY, outer_index(scope)
+            return RegionColor.SECONDARY, outer_index(scope)
 
         if is_adjacent(scope, cursors):
-            return BracketKind.ADJACENT, None
+            return RegionColor.ADJACENT, None
 
         if is_offside(scope):
-            return BracketKind.OFFSIDE, inner_index(scope)
-
-        assert False, "unclassifiable scope %r" % scope
+            return RegionColor.OFFSIDE, inner_index(scope)
 
     def extents_of(scope, mode):
         if mode is ColorMode.NONE:
@@ -109,16 +73,13 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         if mode is ColorMode.EXPRESSION:
             return [scope_expression_region(scope)]
 
-        assert False, "invalid ColorMode %r" % mode
-
     def suitable(scope, (kind, index)):
-        if kind is BracketKind.OFFSIDE:
-            return index <= config[OFFSIDE_LIMIT]
+        if kind is RegionColor.OFFSIDE:
+            return index <= config.offside_limit
 
-        if kind is BracketKind.ADJACENT:
-            side = config[ADJACENT_SIDE]
-            need_left = side & AdjacentMode.LEFT
-            need_right = side & AdjacentMode.RIGHT
+        if kind is RegionColor.ADJACENT:
+            need_left = config.adjacent_left
+            need_right = config.adjacent_right
 
             def is_at_left((index, (begin, end), (left, right)), cursor):
                 return (begin <= cursor) and (cursor < begin + len(left))
@@ -148,7 +109,7 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         if not suitable(scope, fg_color_type):
             continue
 
-        mode = config[kind]
+        mode = config.mode[kind]
         if mode is ColorMode.NONE:
             continue
 
@@ -260,12 +221,15 @@ def fixup_background(colorable_regions, line_extents):
         return (begin2 <= begin1) and (end1 <= end2)
 
     def prepend_background((extent, fg_color, bg_color_stack)):
+        current_line_color = [(RegionColor.CURRENT_LINE, None)]
+        background_color = [(RegionColor.BACKGROUND, None)]
+
         for line in line_extents:
             if contains(extent, line):
-                bg_color_stack = [(CURRENT_LINE, None)] + bg_color_stack
+                bg_color_stack = current_line_color + bg_color_stack
                 break
         else:
-            bg_color_stack = [(BACKGROUND, None)] + bg_color_stack
+            bg_color_stack = background_color + bg_color_stack
 
         return _colorable_region(extent, fg_color, bg_color_stack)
 
@@ -275,35 +239,15 @@ def fixup_background(colorable_regions, line_extents):
 def infer_region_color((extent, fg_color, bg_color_stack), config):
 
     def color_of((kind, index)):
-        if kind is BracketKind.PRIMARY:
-            return config[BracketColor.PRIMARY]
-
-        if kind is BracketKind.SECONDARY:
-            colors = config[BracketColor.SECONDARY]
-            return colors[(index - 1) % len(colors)]
-
-        if kind is BracketKind.OFFSIDE:
-            colors = config[BracketColor.OFFSIDE]
-            return colors[(index - 1) % len(colors)]
-
-        if kind is BracketKind.ADJACENT:
-            return config[BracketColor.ADJACENT]
-
-        if kind is BracketKind.INCONSISTENT:
-            return config[BracketColor.INCONSISTENT]
-
-        if kind is CURRENT_LINE:
-            return None, config['background_color']
-
-        if kind is BACKGROUND:
-            return None, config['current_line_color']
-
-        assert False, "unknown kind %r" % kind
+        color = config.color[kind]
+        if isinstance(color, list):
+            color = color[(index - 1) % len(color)]
+        return color
 
     fg_colo_, bg_colo_ = color_of(fg_color)
 
     bg = reversed(bg_color_stack)
-    while bg_colo_ == TRANSPARENT:
+    while is_transparent(bg_colo_):
         _, bg_colo_ = color_of(next(bg))
 
     return fg_colo_, bg_colo_

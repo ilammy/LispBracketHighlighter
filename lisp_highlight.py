@@ -9,6 +9,7 @@ from bracket_scopes \
            adjacent_scopes, scope_bracket_regions, scope_expression_region
 
 from bracket_coloring import * # fix
+from lisp_highlight_configuration import * # fix too
 
 scan_limit = 100
 
@@ -49,23 +50,25 @@ class LispSelectionListener(sublime_plugin.EventListener):
             #print("cs: ", consistent_scopes)
             #print("is: ", inconsistent_scopes)
 
-            config = { 'primary_mode': ColorMode.EXPRESSION,
-                       'secondary_mode': ColorMode.EXPRESSION,
-                       'offside_mode': ColorMode.BRACKETS,
-                       'offside_limit': 2,
-                       'adjacent_mode': ColorMode.EXPRESSION,
-                       'adjacent_side': AdjacentMode.BOTH,
-                       'invalid_mode': ColorMode.NONE,
-                       'inconsistent_mode': ColorMode.NONE,
+            config = Configuration({
+                'primary_mode': ColorMode.EXPRESSION,
+                'secondary_mode': ColorMode.EXPRESSION,
+                'offside_mode': ColorMode.BRACKETS,
+                'offside_limit': 2,
+                'adjacent_mode': ColorMode.EXPRESSION,
+                'adjacent_side': AdjacentMode.BOTH,
+                'invalid_mode': ColorMode.NONE,
+                'inconsistent_mode': ColorMode.NONE,
 
-                       'background_color': 0x123456,
-                       'current_line_color': 0x789ABC,
+                'background_color': (None, 0x123456),
+                'current_line_color': (None, 0x789ABC),
 
-                       'primary_color': (0x110000, -1),
-                       'secondary_colors': [(0x220000, -1), (0x330000, -1)],
-                       'offside_colors': [(0x440000, 0x004400), (0x550000, 0x005500), (0x660000, 0x006600)],
-                       'adjacent_color': (0x770000, 0x007700),
-                       'inconsistent_color': (0x880000, 0x008800) }
+                'primary_color': (0x110000, Configuration.TRANSPARENT_COLOR),
+                'secondary_colors': [(0x220000, Configuration.TRANSPARENT_COLOR), (0x330000, Configuration.TRANSPARENT_COLOR)],
+                'offside_colors': [(0x440000, 0x004400), (0x550000, 0x005500), (0x660000, 0x006600)],
+                'adjacent_color': (0x770000, 0x007700),
+                'inconsistent_color': (0x880000, 0x008800)
+            })
 
             rgc = color_scopes(indexed_bracket_scopes, config, cursors, supported_brackets)
             #print("rgc:", rgc)
@@ -82,7 +85,16 @@ class LispSelectionListener(sublime_plugin.EventListener):
             fu = fixup_background(dj, lines)
             print("fu: ", fu)
 
-            print("rc: ", map(lambda r: infer_region_color(r, config), fu))
+            colored_regions = {}
+            for region in fu:
+                color = infer_region_color(region, config)
+
+                regions = colored_regions.get(color, [])
+                regions.append(region[0]) # extent
+
+                colored_regions[color] = regions
+
+            print("cr: ", colored_regions)
 
             print ('----')
 
