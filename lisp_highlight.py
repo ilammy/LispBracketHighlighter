@@ -82,15 +82,15 @@ class LispSelectionListener(sublime_plugin.EventListener):
             dj = split_into_disjoint(rgc, lines)
             #print("dj: ", dj)
 
-            fu = fixup_background(dj, lines)
+            fu = prepend_background(dj, lines)
             print("fu: ", fu)
 
             colored_regions = {}
             for region in fu:
-                color = infer_region_color(region, config)
+                color = compute_region_color(region, config)
 
                 regions = colored_regions.get(color, [])
-                regions.append(region[0]) # extent
+                regions.append(extent(region))
 
                 colored_regions[color] = regions
 

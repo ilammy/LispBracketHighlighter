@@ -328,8 +328,9 @@ def _bracket_scope(index, left_bracket, right_bracket):
     return index, (left_point, right_point), (left_kind, right_kind)
 
 def _index(scope): return scope[0]
-def _outer_index(scope): return scope[0][0]
-def _inner_index(scope): return scope[0][1]
+
+def outer_index(scope): return scope[0][0]
+def inner_index(scope): return scope[0][1]
 
 
 def scope_bracket_regions((index, (begin, end), (left, right))):

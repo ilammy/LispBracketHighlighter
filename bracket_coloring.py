@@ -3,20 +3,12 @@ import sublime
 from heapq import heapify, heappop, heapreplace
 
 from bracket_scopes \
-    import is_not_consistent, is_primary_mainline, is_secondary_mainline, \
-           is_offside, is_adjacent, scope_bracket_regions, \
-           scope_expression_region
+    import outer_index, inner_index, scope_bracket_regions, \
+           scope_expression_region, is_not_consistent, is_primary_mainline, \
+           is_secondary_mainline, is_offside, is_adjacent
 
 from lisp_highlight_configuration \
     import ColorMode, RegionColor, Configuration, is_transparent
-
-#Util
-def outer_index(((oi, ii), r, k)): return oi
-def inner_index(((oi, ii), r, k)): return ii
-
-#
-# Methods
-#
 
 # Keeping the extent first is important for not doing any __metashit__
 # to make colorable regions have a proper order. The order matters
@@ -24,19 +16,19 @@ def inner_index(((oi, ii), r, k)): return ii
 def _colorable_region(extent, fg_color, bg_color_stack):
     return (extent, fg_color, bg_color_stack)
 
-def _extent(colorable_region): return colorable_region[0]
+def extent(colorable_region): return colorable_region[0]
 
 
 def color_scopes(scopes, config, cursors, supported_brackets):
     """Splits and transforms the scopes into colorable regions.
 
     The result of this transform is a list of _visible_ regions,
-    exact appearance of which is controlled by the `config` dict.
+    exact appearance of which is controlled by the `config`.
 
     Args:
         [scopes] - a sorted list of scopes to get transformed
 
-        {config} - the configuration dict
+        config - the Configuration to use
 
         [cursors] - a list of current cursors
 
@@ -179,7 +171,7 @@ def split_into_disjoint(regions, lines):
     # inside each other. But this is assumed and the strict check is omitted.
 
     def overlap(left, right):
-        (begin1, end1), (begin2, end2) = _extent(left), _extent(right)
+        (begin1, end1), (begin2, end2) = extent(left), extent(right)
         return begin2 < end1
 
     def split(outer, inner):
@@ -187,7 +179,7 @@ def split_into_disjoint(regions, lines):
             return (begin1, begin2), (end2, end1)
 
         _, fg_color, bg_color_stack = outer
-        extent1, extent2 = split(_extent(outer), _extent(inner))
+        extent1, extent2 = split(extent(outer), extent(inner))
 
         return _colorable_region(extent1, fg_color, bg_color_stack), \
                _colorable_region(extent2, fg_color, bg_color_stack)
@@ -213,9 +205,21 @@ def split_into_disjoint(regions, lines):
     return result
 
 
-def fixup_background(colorable_regions, line_extents):
-    """
-    TODO
+def prepend_background(colorable_regions, line_extents):
+    """Prepends proper terminating background to colorable regions.
+
+    It is necessary to ensure that each colorable region has at least something
+    in its background color stack, and that this something is not transparent.
+    This will be either a 'current line' background for regions that are located
+    in the same line as the cursor or a 'normal' background for everything else.
+
+    Args:
+        [colorable_regions] - a list of colorable regions to update
+
+        [line_extents] - a list of regions denoting the cursors' lines
+
+    Returns:
+        [colorable_regions] - a list of updated colorable regions
     """
     def contains((begin1, end1), (begin2, end2)):
         return (begin2 <= begin1) and (end1 <= end2)
@@ -236,18 +240,27 @@ def fixup_background(colorable_regions, line_extents):
     return map(prepend_background, colorable_regions)
 
 
-def infer_region_color((extent, fg_color, bg_color_stack), config):
+def compute_region_color((extent, fg_color, bg_color_stack), config):
+    """Determines the 'flat' color of a region, with transparency removed.
 
+    Args:
+        colorable_region - a colorable region to be colored
+
+        config - the Configuration to use for picking colors
+
+    Returns:
+        (fg, bg) - a tuple of resulting merged color
+    """
     def color_of((kind, index)):
         color = config.color[kind]
         if isinstance(color, list):
             color = color[(index - 1) % len(color)]
         return color
 
-    fg_colo_, bg_colo_ = color_of(fg_color)
+    foreground, background = color_of(fg_color)
 
-    bg = reversed(bg_color_stack)
-    while is_transparent(bg_colo_):
-        _, bg_colo_ = color_of(next(bg))
+    underlying_background = reversed(bg_color_stack)
+    while is_transparent(background):
+        _, background = color_of(next(underlying_background))
 
-    return fg_colo_, bg_colo_
+    return foreground, background
