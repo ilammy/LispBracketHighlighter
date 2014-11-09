@@ -6,7 +6,8 @@ from bracket_scopes \
            index_brackets, locate_brackets, merge_bracket_indices, \
            compute_bracket_scopes, filter_consistent_scopes, \
            primary_mainline_scope, secondary_mainline_scopes, offside_scopes, \
-           adjacent_scopes, scope_bracket_regions, scope_expression_region
+           adjacent_scopes, scope_bracket_regions, scope_expression_region, \
+           current_lines_of_view
 
 from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
@@ -73,11 +74,8 @@ class LispSelectionListener(sublime_plugin.EventListener):
             rgc = color_scopes(indexed_bracket_scopes, config, cursors, supported_brackets)
             #print("rgc:", rgc)
 
-            def as_tuple(region):
-                return region.begin(), region.end()
-
-            # can improve by merging consecutive lines
-            lines = [as_tuple(view.line(cursor)) for cursor in cursors]
+            lines = current_lines_of_view(view, cursors)
+            #print("l:  ", lines)
 
             dj = split_into_disjoint(rgc, lines)
             #print("dj: ", dj)

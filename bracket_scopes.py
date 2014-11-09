@@ -18,6 +18,46 @@ def cursors_of_view(view):
     return [region.begin() for region in view.sel() if region.empty()]
 
 
+def current_lines_of_view(view, cursors):
+    """Extracts regions of the current lines of the view.
+
+    Also merges consecutive regions.
+
+    Args:
+        view - an instance of sublime.View
+
+        [cursors] - a list of cursors selected in the view
+
+    Returns:
+        [(begin, end)] - a list of resulting line region tuples
+    """
+    if not cursors: return []
+
+    def as_tuple(region):
+        return region.begin(), region.end()
+
+    lines = [as_tuple(view.line(cursor)) for cursor in cursors]
+
+    def consecutive((begin1, end1), (begin2, end2)):
+        return (end1 + 1) == begin2
+
+    def merge((begin1, end1), (begin2, end2)):
+        return begin1, end2
+
+    result = []
+    previous_line = lines[0]
+
+    for line in lines[1:]:
+        if consecutive(previous_line, line):
+            previous_line = merge(previous_line, line)
+        else:
+            result.append(previous_line)
+            previous_line = line
+
+    result.append(previous_line)
+    return result
+
+
 def expand_cursors_to_regions(cursors, amount, view):
     """Computes the vicinities of the cursors.
 
