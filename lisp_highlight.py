@@ -81,7 +81,7 @@ class LispSelectionListener(sublime_plugin.EventListener):
             #print("dj: ", dj)
 
             fu = prepend_background(dj, lines)
-            print("fu: ", fu)
+            #print("fu: ", fu)
 
             colored_regions = {}
             for region in fu:
@@ -91,8 +91,11 @@ class LispSelectionListener(sublime_plugin.EventListener):
                 regions.append(extent(region))
 
                 colored_regions[color] = regions
+            #print("cr: ", colored_regions)
 
-            print("cr: ", colored_regions)
+            altogether = []
+            for color, regions in colored_regions.iteritems():
+                altogether.extend(map(lambda (b, e): sublime.Region(b, e), regions))
 
-            print ('----')
-
+            view.erase_regions("test")
+            view.add_regions("test", altogether, "invalid")
