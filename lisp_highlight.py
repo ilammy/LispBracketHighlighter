@@ -6,11 +6,15 @@ from bracket_scopes \
            index_brackets, locate_brackets, merge_bracket_indices, \
            compute_bracket_scopes, filter_consistent_scopes, \
            primary_mainline_scope, secondary_mainline_scopes, offside_scopes, \
-           adjacent_scopes, scope_bracket_regions, scope_expression_region
+           adjacent_scopes, scope_bracket_regions, scope_expression_region, \
+           current_lines_of_view
+
+from bracket_coloring import * # fix
+from lisp_highlight_configuration import * # fix too
 
 scan_limit = 100
 
-supported_brackets = [('(', ')'), ('[', ']'), ('#(', ')'),]
+supported_brackets = [('(', ')'), ('[', ']'), ('{', '}'),]
 
 class LispSelectionListener(sublime_plugin.EventListener):
 
@@ -25,17 +29,6 @@ class LispSelectionListener(sublime_plugin.EventListener):
         examined_regions = merge_adjacent_regions(expanded_regions, cursors)
         #print("er: ", examined_regions)
 
-        ####
-        #view.erase_regions("key")
-        #view.erase_regions("key2")
-        ####
-
-        view.erase_regions("pm")
-        view.erase_regions("sm")
-        view.erase_regions("os")
-        view.erase_regions("aj")
-        view.erase_regions("iv")
-
         def no_strings_and_comments(scope):
             return ("comment" not in scope) and ("string" not in scope)
 
@@ -43,11 +36,6 @@ class LispSelectionListener(sublime_plugin.EventListener):
 
             brackets = locate_brackets(view, region, supported_brackets, no_strings_and_comments)
             #print("b: ", brackets)
-
-            ####
-            #view.add_regions("key", map(lambda (f, o, t): sublime.Region(o, o + 1), brackets), "comment")
-            #view.add_regions("key2", map(lambda c: sublime.Region(c, c + 1), cursors), "string")
-            ####
 
             per_cursor_indices = [index_brackets(brackets, cursor) for cursor in cursors]
             #print("pci: ", per_cursor_indices)
@@ -63,27 +51,51 @@ class LispSelectionListener(sublime_plugin.EventListener):
             #print("cs: ", consistent_scopes)
             #print("is: ", inconsistent_scopes)
 
-            pm_scope = primary_mainline_scope(consistent_scopes)
+            config = Configuration({
+                'primary_mode': ColorMode.EXPRESSION,
+                'secondary_mode': ColorMode.EXPRESSION,
+                'offside_mode': ColorMode.BRACKETS,
+                'offside_limit': 2,
+                'adjacent_mode': ColorMode.EXPRESSION,
+                'adjacent_side': AdjacentMode.BOTH,
+                'invalid_mode': ColorMode.NONE,
+                'inconsistent_mode': ColorMode.NONE,
 
-            sm_scopes = secondary_mainline_scopes(consistent_scopes)
+                'background_color': (None, 0x123456),
+                'current_line_color': (None, 0x789ABC),
 
-            os_scopes = offside_scopes(consistent_scopes)
+                'primary_color': (0x110000, Configuration.TRANSPARENT_COLOR),
+                'secondary_colors': [(0x220000, Configuration.TRANSPARENT_COLOR), (0x330000, Configuration.TRANSPARENT_COLOR)],
+                'offside_colors': [(0x440000, 0x004400), (0x550000, 0x005500), (0x660000, 0x006600)],
+                'adjacent_color': (0x770000, 0x007700),
+                'inconsistent_color': (0x880000, 0x008800)
+            })
 
-            aj_scopes = adjacent_scopes(consistent_scopes, cursors)
+            rgc = color_scopes(indexed_bracket_scopes, config, cursors, supported_brackets)
+            #print("rgc:", rgc)
 
-            def flatten(scope_pairs):
-                res = []
-                for a, b in scope_pairs:
-                    res.append(a)
-                    res.append(b)
-                return res
+            lines = current_lines_of_view(view, cursors)
+            #print("l:  ", lines)
 
-            view.add_regions("pm", flatten(map(scope_bracket_regions, pm_scope)), "string")
+            dj = split_into_disjoint(rgc, lines)
+            #print("dj: ", dj)
 
-            view.add_regions("sm", flatten(map(scope_bracket_regions, sm_scopes)), "comment")
+            fu = prepend_background(dj, lines)
+            #print("fu: ", fu)
 
-            view.add_regions("os", flatten(map(scope_bracket_regions, os_scopes)), "constant.numeric")
+            colored_regions = {}
+            for region in fu:
+                color = compute_region_color(region, config)
 
-            view.add_regions("aj", map(scope_expression_region, aj_scopes), "entity.name.class")
+                regions = colored_regions.get(color, [])
+                regions.append(extent(region))
 
-            view.add_regions("iv", flatten(map(scope_bracket_regions, inconsistent_scopes)), "invalid")
+                colored_regions[color] = regions
+            #print("cr: ", colored_regions)
+
+            altogether = []
+            for color, regions in colored_regions.iteritems():
+                altogether.extend(map(lambda (b, e): sublime.Region(b, e), regions))
+
+            view.erase_regions("test")
+            view.add_regions("test", altogether, "invalid")
