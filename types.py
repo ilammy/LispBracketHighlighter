@@ -110,3 +110,93 @@ def LeftBracket(point, kind):
 def RightBracket(point, kind):
     """Constructs a right Bracket of a given kind a given point."""
     return Bracket(Bracket._RIGHT, point, kind)
+
+#
+# Scopes
+#
+
+class Scope:
+    """A scope in text delimited by a pair of matching brackets.
+
+    Scopes determine the nature and the nesting level of a pair of brackets.
+    The nature of indices is documented in bracket_scopes.index_brackets.
+
+    Indices determine the scope type. There are five types of scopes:
+
+        1. Primary mainline - immediately enclosing scope of the cursor point.
+           There can be at most one primary mainline scope.
+
+        2. Secondary mainline - immediately enclosing scopes of the primary
+           mainline scope or the other secondary mainline scope. There can be
+           only one secondary mainline scope of each nesting depth.
+
+        3. Offside - other, non-mainline scopes. They also have their own
+           nesting depth.
+
+        4. Adjacent - the scope delimited by the brackets adjacent to the
+           cursor. Adjacent means that the cursor must not be inside the scope.
+           There can be at most one such scope.
+
+        5. Inconsistent - scopes with brackets that do not match.
+
+    Fields:
+        index - the index of this scope, a tuple of (outer, inner) numbers that
+                are also available separately via outer_index and inner_index
+
+        left_bracket - the left bracket of this scope, instance of Bracket
+
+        right_bracket - the right bracket of this scope, instance of Bracket
+    """
+    def __init__(self, index, left_bracket, right_bracket):
+        assert left_bracket.is_left() and right_bracket.is_right()
+
+        self.index = self.outer_index, self.inner_index = index
+
+        self.left_bracket = left_bracket
+        self.right_bracket = right_bracket
+
+    def bracket_regions(self):
+        """Constructs a pair of regions bound to the brackets of this scope."""
+        return self.left_bracket.region(), self.right_bracket.region()
+
+    def expression_region(self):
+        """Constructs a region bound to the extent of this scope."""
+        return span(self.left_bracket.region(), self.right_bracket.region())
+
+    def is_not_consistent_with(self, bracket_pairs):
+        """False is this scope is consistent w.r.t. the given set of brackets.
+
+        Args:
+            [bracket_pairs] - a set of (left, right) pairs of bracket kinds
+                that are considered valid and consistent
+        """
+        bracket_pair = self.left_bracket.kind, self.right_bracket.kind
+        return bracket_pair not in bracket_pairs
+
+    def is_primary_mainline(self):
+        """True is this scope is a primary mainline scope."""
+        return (self.inner_index == 0) and (self.outer_index == 0)
+
+    def is_secondary_mainline(self):
+        """True is this scope is a secondary mainline scope."""
+        return (self.inner_index == 0) and (self.outer_index != 0)
+
+    def is_offside(self):
+        """True is this scope is an offside scope."""
+        return self.inner_index > 0
+
+    def is_adjacent_to(self, cursors):
+        """True is this scope is adjacent to any of the given cursors.
+
+        Args:
+            [cursors] - a list of cursor points for adjacency test
+        """
+        def is_an_endpoint(cursor):
+            return self.left_bracket.contains(cursor) or \
+                   self.right_bracket.contains(cursor)
+
+        for cursor in cursors:
+            if is_an_endpoint(cursor):
+                return True
+        else:
+            return False

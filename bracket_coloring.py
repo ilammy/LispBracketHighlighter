@@ -10,6 +10,8 @@ from bracket_scopes \
 from lisp_highlight_configuration \
     import ColorMode, RegionColor, Configuration, is_transparent
 
+from types import Scope
+
 # Keeping the extent first is important for not doing any __metashit__
 # to make colorable regions have a proper order. The order matters
 # because heapq's functions cannot accept keys or comparators.
@@ -40,30 +42,30 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         [colorable_regions] - a list of resulting colorable regions
     """
     def color_type_of(scope):
-        if is_not_consistent(scope, supported_brackets):
+        if scope.is_not_consistent_with(supported_brackets):
             return RegionColor.INCONSISTENT, None
 
-        if is_primary_mainline(scope):
+        if scope.is_primary_mainline():
             return RegionColor.PRIMARY, None
 
-        if is_secondary_mainline(scope):
-            return RegionColor.SECONDARY, outer_index(scope)
+        if scope.is_secondary_mainline():
+            return RegionColor.SECONDARY, scope.outer_index
 
-        if is_adjacent(scope, cursors):
+        if scope.is_adjacent_to(cursors):
             return RegionColor.ADJACENT, None
 
-        if is_offside(scope):
-            return RegionColor.OFFSIDE, inner_index(scope)
+        if scope.is_offside():
+            return RegionColor.OFFSIDE, scope.inner_index
 
     def extents_of(scope, mode):
         if mode is ColorMode.NONE:
             return []
 
         if mode is ColorMode.BRACKETS:
-            return list(scope_bracket_regions(scope))
+            return list(scope.bracket_regions())
 
         if mode is ColorMode.EXPRESSION:
-            return [scope_expression_region(scope)]
+            return [scope.expression_region()]
 
     def suitable(scope, (kind, index)):
         if kind is RegionColor.OFFSIDE:
@@ -73,25 +75,19 @@ def color_scopes(scopes, config, cursors, supported_brackets):
             need_left = config.adjacent_left
             need_right = config.adjacent_right
 
-            def is_at_left((index, (begin, end), (left, right)), cursor):
-                return (begin <= cursor) and (cursor < begin + len(left))
-
-            def is_at_right((index, (begin, end), (left, right)), cursor):
-                return (end < cursor) and (cursor <= end + len(right))
-
             for cursor in cursors:
-                if (need_left and is_at_left(scope, cursor)) or \
-                   (need_right and is_at_right(scope, cursor)):
+                if (need_left and scope.left_bracket.contains(cursor)) or \
+                   (need_right and scope.right_bracket.contains(cursor)):
                     return True
             else:
                 return False
 
         return True
 
-    def not_nested(scope1, scope2):
-        begin1, end1 = scope_expression_region(scope1)
-        begin2, end2 = scope_expression_region(scope2)
-        return end1 < begin2
+    def touching(left_scope, right_scope):
+        left_region = left_scope.expression_region()
+        right_region = right_scope.expression_region()
+        return left_region.touches(right_region)
 
     result = []
     bg_scope_stack = []
@@ -105,7 +101,7 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         if mode is ColorMode.NONE:
             continue
 
-        while bg_scope_stack and not_nested(bg_scope_stack[-1], scope):
+        while bg_scope_stack and not touching(bg_scope_stack[-1], scope):
             bg_scope_stack.pop()
 
         bg_color_stack = map(color_type_of, bg_scope_stack)
@@ -167,22 +163,24 @@ def split_into_disjoint(regions, lines):
     regions.extend(linebreaks)
     heapify(regions)
 
+    def overlap(left, right):
+        return left.extent().overlaps(right.extent())
+
     def split(outer, inner):
-        def split((begin1, end1), (begin2, end2)):
-            return (begin1, begin2), (end2, end1)
+        extent1 = Region(outer.extent().begin, inner.extent().begin)
+        extent2 = Region(inner.extent().end, outer.extent().end)
+        foreground = outer.foreground
+        background_stack = outer.background_stack
 
-        _, fg_color, bg_color_stack = outer
-        extent1, extent2 = split(extent(outer), extent(inner))
-
-        return _colorable_region(extent1, fg_color, bg_color_stack), \
-               _colorable_region(extent2, fg_color, bg_color_stack)
+        return ColorableSpan(extent1, foreground, background_stack), \
+               ColorableSpan(extent2, foreground, background_stack)
 
     result = []
     while len(regions) > 1:
         leftmost, next_one = heap_min(regions), heap_min_next(regions)
         # Invariant: leftmost must be disjoint from all other regions
 
-        if leftmost.overlaps(next_one):
+        if overlap(leftmost, next_one):
             leftmost, following = split(leftmost, next_one)
             heapreplace(regions, following)
         else:

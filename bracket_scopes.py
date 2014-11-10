@@ -2,7 +2,7 @@ import sublime
 
 from bisect import bisect_left
 
-from types import Region, span, Bracket, LeftBracket, RightBracket
+from types import Region, span, Bracket, LeftBracket, RightBracket, Scope
 
 #
 # Cursors and regions
@@ -334,49 +334,6 @@ def merge_bracket_indices(per_cursor_indices):
 # Scopes
 #
 
-# Bracket scopes are represented as (index, region, kinds) tuples
-#   index  - nesting index of the bracket pair
-#   region - a pair of points of the left and right brackets
-#   kinds  - a pair of string representations of the brackets
-
-def _bracket_scope(index, left_bracket, right_bracket):
-    _, left_point, left_kind = left_bracket
-    _, right_point, right_kind = right_bracket
-    return index, (left_point, right_point), (left_kind, right_kind)
-
-def _index(scope): return scope[0]
-
-def outer_index(scope): return scope[0][0]
-def inner_index(scope): return scope[0][1]
-
-
-def scope_bracket_regions((index, (begin, end), (left, right))):
-    """Constructs regions bound to the brackets of the scope.
-
-    Args:
-        scope - the scope in question
-
-    Returns:
-        left, right - a pair of (begin, end) tuples that delimit
-                      the brackets of the scope
-    """
-    return (begin, begin + len(left)), (end, end + len(right))
-
-
-def scope_expression_region((index, (begin, end), (left, right))):
-    """Constructs a region bound to the extents of the scope.
-
-    Args:
-        scope - the scope in question
-
-    Returns:
-        expression_scope
-            - the (begin, end) tuple that delimits the scope
-              (the inside of the scope as well as its brackets)
-    """
-    return (begin, end + len(right))
-
-
 def compute_bracket_scopes(brackets, indices):
     """Computes bracket scopes from brackets and their indices.
 
@@ -408,43 +365,7 @@ def compute_bracket_scopes(brackets, indices):
             if right_bracket.is_left(): continue
 
             if indices_equal(left_index, right_index):
-                scopes.append(_bracket_scope(left_index, left_bracket, right_bracket))
+                scopes.append(Scope(left_index, left_bracket, right_bracket))
                 break
 
     return scopes
-
-#
-# Scope filters
-#
-
-def is_not_consistent((index, range, brackets), supported_brackets):
-    """A predicate for consistent scopes."""
-    return brackets not in supported_brackets
-
-
-def is_primary_mainline(((outer_index, inner_index), range, brackets)):
-    """A predicate for primary mainline scopes."""
-    return (inner_index == 0) and (outer_index == 0)
-
-
-def is_secondary_mainline(((outer_index, inner_index), range, brackets)):
-    """A predicate for secondary mainline scopes."""
-    return (inner_index == 0) and (outer_index != 0)
-
-
-def is_offside(((outer_index, inner_index), range, brackets)):
-    """A predicate for offside scopes."""
-    return inner_index > 0
-
-
-def is_adjacent((index, (begin, end), (left, right)), cursors):
-    """A predicate for adjacent scopes."""
-    def is_an_endpoint(cursor):
-        return ((begin <= cursor) and (cursor < begin + len(left))) \
-               or ((end < cursor) and (cursor <= end + len(right)))
-
-    for cursor in cursors:
-        if is_an_endpoint(cursor):
-            return True
-    else:
-        return False
