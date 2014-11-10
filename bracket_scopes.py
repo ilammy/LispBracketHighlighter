@@ -119,21 +119,6 @@ def merge_adjacent_regions(regions, cursors):
 # Brackets
 #
 
-# Brackets are represented as (type, point, kind) tuples
-#   type  - 0 for left brackets, 1 for right ones
-#   point - a point in the view where the bracket is located
-#   kind  - textual representation of the bracket
-
-_LEFT_BRACKET = 0
-_RIGHT_BRACKET = 1
-
-def _left_bracket(point, kind): return (_LEFT_BRACKET, point, kind)
-def _right_bracket(point, kind): return (_RIGHT_BRACKET, point, kind)
-
-def _is_left(bracket): return bracket[0] == _LEFT_BRACKET
-def _is_right(bracket): return bracket[0] == _RIGHT_BRACKET
-
-
 def locate_brackets(view, region, supported_brackets, suitable_scope):
     """Locates all brackets in the specified region of the view.
 
@@ -169,12 +154,12 @@ def locate_brackets(view, region, supported_brackets, suitable_scope):
             for left, right in supported_brackets:
 
                 if substring_matches_at(point, view, left):
-                    brackets.append(_left_bracket(point, left))
+                    brackets.append(LeftBracket(point, left))
                     point += len(left) - 1
                     break
 
                 if substring_matches_at(point, view, right):
-                    brackets.append(_right_bracket(point, right))
+                    brackets.append(RightBracket(point, right))
                     point += len(right) - 1
                     break
 
@@ -262,13 +247,7 @@ def index_brackets(brackets, cursor):
         # need to be done for multicharacter left brackets to ensure that
         # they are treated by bisect_left as 'located to the left' only
         # when they are _entirely_ located to the left of the cursor.
-        def bracket_point((type, point, kind)):
-            if type == _RIGHT_BRACKET:
-                return point
-            else:
-                return point + len(kind) - 1
-
-        return bisect_left(map(bracket_point, brackets), cursor)
+        return bisect_left(map(Bracket.inside_point, brackets), cursor)
 
     cii = cursor_insertion_index(cursor, brackets)
 
@@ -278,10 +257,10 @@ def index_brackets(brackets, cursor):
         outer_depth = -1
         next_depth = 0
 
-        for left_bracket in map(_is_left, reversed(brackets[0:cii])):
+        for bracket in reversed(brackets[0:cii]):
             inner_depth = next_depth
 
-            if left_bracket:
+            if bracket.is_left():
                 if next_depth == 0:
                     outer_depth += 1
                 else:
@@ -301,10 +280,10 @@ def index_brackets(brackets, cursor):
         outer_depth = -1
         next_idepth = 0
 
-        for right_bracket in map(_is_right, brackets[cii:]):
+        for bracket in brackets[cii:]:
             inner_depth = next_idepth
 
-            if right_bracket:
+            if bracket.is_right():
                 if next_idepth == 0:
                     outer_depth += 1
                 else:
@@ -422,11 +401,11 @@ def compute_bracket_scopes(brackets, indices):
     indexed_brackets = zip(indices, brackets)
 
     for i, (left_index, left_bracket) in enumerate(indexed_brackets):
-        if _is_right(left_bracket): continue
+        if left_bracket.is_right(): continue
 
         remaining_brackets = enumerate(indexed_brackets[i+1:], i+1)
         for j, (right_index, right_bracket) in remaining_brackets:
-            if _is_left(right_bracket): continue
+            if right_bracket.is_left(): continue
 
             if indices_equal(left_index, right_index):
                 scopes.append(_bracket_scope(left_index, left_bracket, right_bracket))
