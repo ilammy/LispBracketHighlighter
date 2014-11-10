@@ -11,6 +11,7 @@ from bracket_scopes \
 
 from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
+from types import * # and this
 
 scan_limit = 100
 
@@ -95,7 +96,7 @@ class LispSelectionListener(sublime_plugin.EventListener):
 
             altogether = []
             for color, regions in colored_regions.iteritems():
-                altogether.extend(map(lambda (b, e): sublime.Region(b, e), regions))
+                altogether.extend(map(Region.as_sublime_region, regions))
 
             view.erase_regions("test")
             view.add_regions("test", altogether, "invalid")

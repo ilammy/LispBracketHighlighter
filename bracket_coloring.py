@@ -131,7 +131,7 @@ def split_into_disjoint(regions, lines):
     Args:
         [regions] - a list of colorable regions to be split
 
-        [lines] - a list of (begin, end) region tuples denoting the lines
+        [lines] - a list of regions denoting the lines
 
     Returns:
         [regions] - a sorted list of disjoint colorable regions
@@ -151,7 +151,7 @@ def split_into_disjoint(regions, lines):
     def linebreak((extent, fg_color, bg_color_stack)):
         return (fg_color is None) and (bg_color_stack is None)
 
-    linebreaks = map(make_linebreak, [L[0] for L in lines] + [lines[-1][1]])
+    linebreaks = map(make_linebreak, [L.begin for L in lines] + [lines[-1].end])
 
     # We make use of the heap property to efficiently split the regions into
     # disjoint parts with a sweeping line algorithm. The resulting region list
@@ -166,13 +166,6 @@ def split_into_disjoint(regions, lines):
     regions = regions[:]
     regions.extend(linebreaks)
     heapify(regions)
-
-    # Actually, bracket scopes do not strictly _overlap_. They are _contained_
-    # inside each other. But this is assumed and the strict check is omitted.
-
-    def overlap(left, right):
-        (begin1, end1), (begin2, end2) = extent(left), extent(right)
-        return begin2 < end1
 
     def split(outer, inner):
         def split((begin1, end1), (begin2, end2)):
@@ -189,7 +182,7 @@ def split_into_disjoint(regions, lines):
         leftmost, next_one = heap_min(regions), heap_min_next(regions)
         # Invariant: leftmost must be disjoint from all other regions
 
-        if overlap(leftmost, next_one):
+        if leftmost.overlaps(next_one):
             leftmost, following = split(leftmost, next_one)
             heapreplace(regions, following)
         else:
