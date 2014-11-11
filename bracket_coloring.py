@@ -2,11 +2,6 @@ import sublime
 
 from heapq import heapify, heappop, heapreplace
 
-from bracket_scopes \
-    import outer_index, inner_index, scope_bracket_regions, \
-           scope_expression_region, is_not_consistent, is_primary_mainline, \
-           is_secondary_mainline, is_offside, is_adjacent
-
 from lisp_highlight_configuration \
     import ColorMode, RegionColor, Configuration, is_transparent
 
