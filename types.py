@@ -31,6 +31,10 @@ class Region:
         assert (self <= other)
         return (other.begin <= self.end)
 
+    def contains(self, other):
+        """True if this region contains another one entirely."""
+        return (self.begin <= other.begin) and (other.end <= self.end)
+
 
 def span(from_region, to_region):
     """Returns a region spanning both given regions."""
@@ -200,3 +204,31 @@ class Scope:
                 return True
         else:
             return False
+
+#
+# Colorable spans
+#
+
+class ColorableSpan:
+    """A region of text with associate color information.
+
+    These object carry intermediate information about the color of text spans.
+    This information can be used to remove the transparent background spans and
+    infer the actual color for this span.
+
+    The colors are represented as (type, depth) tuples where type is an
+    enumeration of the scope type (see Scope), and depth is an optional integer
+    depth (useful for SECONDARY and OFFSIDE scopes).
+
+    Fields:
+        extent - the region in the text, instance of Region
+
+        foreground - a color tuple of the main color of the scope
+
+        background_stack - a stack of color tuples of the background (parent)
+                           scopes of this one; the last one is the topmost one
+    """
+    def __init__(self, extent, foreground, background_stack):
+        self.extent = extent
+        self.foreground = foreground
+        self.background_stack = background_stack
