@@ -8,7 +8,7 @@ class AdjacentMode: # flags
     RIGHT = 2
     BOTH  = 3
 
-RegionColor = _make_enum('PRIMARY', 'SECONDARY', 'OFFSIDE', 'ADJACENT',
+RegionColor = make_enum('PRIMARY', 'SECONDARY', 'OFFSIDE', 'ADJACENT',
     'INCONSISTENT', 'BACKGROUND', 'CURRENT_LINE')
 
 def is_transparent(color):

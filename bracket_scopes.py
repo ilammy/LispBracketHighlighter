@@ -2,6 +2,8 @@ import sublime
 
 from bisect import bisect_left
 
+from types import Region, span, Bracket, LeftBracket, RightBracket, Scope
+
 #
 # Cursors and regions
 #
@@ -13,7 +15,7 @@ def cursors_of_view(view):
         view - an instance of sublime.View where to look for cursors
 
     Returns:
-        [point] - a list of cursor points
+        [point] - a list of cursor points, sorted
     """
     return [region.begin() for region in view.sel() if region.empty()]
 
@@ -26,33 +28,30 @@ def current_lines_of_view(view, cursors):
     Args:
         view - an instance of sublime.View
 
-        [cursors] - a list of cursors selected in the view
+        [cursors] - a sorted list of cursors selected in the view
 
     Returns:
-        [(begin, end)] - a list of resulting line region tuples
+        [regions] - a list of resulting line Regions, sorted
     """
     if not cursors: return []
 
-    def as_tuple(region):
-        return region.begin(), region.end()
+    def as_region(sublime_region):
+        return Region(sublime_region.begin(), sublime_region.end())
 
-    lines = [as_tuple(view.line(cursor)) for cursor in cursors]
+    lines = [as_region(view.line(cursor)) for cursor in cursors]
 
-    def consecutive((begin1, end1), (begin2, end2)):
-        return (end1 + 1) == begin2
-
-    def merge((begin1, end1), (begin2, end2)):
-        return begin1, end2
+    def consecutive(this, next):
+        return (this.end + 1) == next.begin
 
     result = []
     previous_line = lines[0]
 
-    for line in lines[1:]:
-        if consecutive(previous_line, line):
-            previous_line = merge(previous_line, line)
+    for next_line in lines[1:]:
+        if consecutive(previous_line, next_line):
+            previous_line = span(previous_line, next_line)
         else:
             result.append(previous_line)
-            previous_line = line
+            previous_line = next_line
 
     result.append(previous_line)
     return result
@@ -64,23 +63,23 @@ def expand_cursors_to_regions(cursors, amount, view):
     Args:
         [cursors] - a list of cursors that will be centers of the regions
 
-        amount - radius (in points) of the desired regions
+        amount - radius (in points) of desired regions
 
         view - the sublime.View the cursors are from
 
     Returns:
-        [(begin, end)] - a list of regions (as tuples of points)
-                         that correspond to the cursors
+        [regions] - a list of regions corresponding to the cursors
     """
-    view_size = (0, view.size() - 1)
+    assert (amount >= 0)
+    view_begin, view_end = 0, view.size() - 1
 
-    def clamp_expand(cursor, amount, (left, right)):
+    def clamp_expand(cursor):
         begin, end = cursor - amount, cursor + amount
-        if begin < left: begin = left
-        if end > right: end = right
-        return begin, end
+        if begin < view_begin: begin = view_begin
+        if end > view_end: end = view_end
+        return Region(begin, end)
 
-    return [clamp_expand(cursor, amount, view_size) for cursor in cursors]
+    return map(clamp_expand, cursors)
 
 
 def merge_adjacent_regions(regions, cursors):
@@ -92,13 +91,12 @@ def merge_adjacent_regions(regions, cursors):
         [cursors] - a list of cursors that are the centers of the regions
 
     Returns:
-        [((begin, end), [cursors])]
-            - a list of tuples of disjoint regions and their contained cursors
+        [(Region, [cursors])]
+            - a list disjoint regions and the cursors they contain,
+              the list is sorted by regions, the cursors are also sorted
     """
     if not regions: return []
-
-    def intersect((b1, e1), (b2, e2)): return (e1 >= b2)
-    def merge((b1, e1), (b2, e2)): return (b1, e2)
+    assert len(regions) == len(cursors)
 
     current_region = regions[0]
     current_cursors = set([cursors[0]])
@@ -106,43 +104,28 @@ def merge_adjacent_regions(regions, cursors):
     result = []
 
     for next_region, next_cursor in zip(regions[1:], cursors[1:]):
-        if intersect(current_region, next_region):
-            current_region = merge(current_region, next_region)
+        if current_region.touches(next_region):
+            current_region = span(current_region, next_region)
             current_cursors.add(next_cursor)
         else:
-            result.append((current_region, list(current_cursors)))
+            result.append((current_region, sorted(current_cursors)))
             current_region = next_region
             current_cursors = set([next_cursor])
 
-    result.append((current_region, list(current_cursors)))
+    result.append((current_region, sorted(current_cursors)))
     return result
 
 #
 # Brackets
 #
 
-# Brackets are represented as (type, point, kind) tuples
-#   type  - 0 for left brackets, 1 for right ones
-#   point - a point in the view where the bracket is located
-#   kind  - textual representation of the bracket
-
-_LEFT_BRACKET = 0
-_RIGHT_BRACKET = 1
-
-def _left_bracket(point, kind): return (_LEFT_BRACKET, point, kind)
-def _right_bracket(point, kind): return (_RIGHT_BRACKET, point, kind)
-
-def _is_left(bracket): return bracket[0] == _LEFT_BRACKET
-def _is_right(bracket): return bracket[0] == _RIGHT_BRACKET
-
-
-def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
+def locate_brackets(view, region, supported_brackets, suitable_scope):
     """Locates all brackets in the specified region of the view.
 
     Args:
         view - a sublime.View to scan for brackets
 
-        begin, end - the exact region in the view to scan through
+        region - the exact region in the view to scan through
 
         [supported_brackets]
             - a list of (left_bracket, right_bracket) tuples of strings
@@ -163,20 +146,20 @@ def locate_brackets(view, (begin, end), supported_brackets, suitable_scope):
 
     brackets = []
 
-    point = begin
-    while point < end:
+    point = region.begin
+    while point < region.end:
 
         if suitable_scope(view.scope_name(point)):
 
             for left, right in supported_brackets:
 
                 if substring_matches_at(point, view, left):
-                    brackets.append(_left_bracket(point, left))
+                    brackets.append(LeftBracket(point, left))
                     point += len(left) - 1
                     break
 
                 if substring_matches_at(point, view, right):
-                    brackets.append(_right_bracket(point, right))
+                    brackets.append(RightBracket(point, right))
                     point += len(right) - 1
                     break
 
@@ -217,7 +200,7 @@ def index_brackets(brackets, cursor):
                   (     ) ( ) (|    ) (             )
                     ( )        |( )     ( ) (     )
                                |              ( )  
-    
+
     Then, by considering the 'distance' of the bracket pair from the cursor,
     we can divide the brackets into layers:
                                                                   outer   inner
@@ -264,13 +247,7 @@ def index_brackets(brackets, cursor):
         # need to be done for multicharacter left brackets to ensure that
         # they are treated by bisect_left as 'located to the left' only
         # when they are _entirely_ located to the left of the cursor.
-        def bracket_point((type, point, kind)):
-            if type == _RIGHT_BRACKET:
-                return point
-            else:
-                return point + len(kind) - 1
-
-        return bisect_left(map(bracket_point, brackets), cursor)
+        return bisect_left(map(Bracket.inside_point, brackets), cursor)
 
     cii = cursor_insertion_index(cursor, brackets)
 
@@ -280,10 +257,10 @@ def index_brackets(brackets, cursor):
         outer_depth = -1
         next_depth = 0
 
-        for left_bracket in map(_is_left, reversed(brackets[0:cii])):
+        for bracket in reversed(brackets[0:cii]):
             inner_depth = next_depth
 
-            if left_bracket:
+            if bracket.is_left():
                 if next_depth == 0:
                     outer_depth += 1
                 else:
@@ -303,10 +280,10 @@ def index_brackets(brackets, cursor):
         outer_depth = -1
         next_idepth = 0
 
-        for right_bracket in map(_is_right, brackets[cii:]):
+        for bracket in brackets[cii:]:
             inner_depth = next_idepth
 
-            if right_bracket:
+            if bracket.is_right():
                 if next_idepth == 0:
                     outer_depth += 1
                 else:
@@ -357,49 +334,6 @@ def merge_bracket_indices(per_cursor_indices):
 # Scopes
 #
 
-# Bracket scopes are represented as (index, region, kinds) tuples
-#   index  - nesting index of the bracket pair
-#   region - a pair of points of the left and right brackets
-#   kinds  - a pair of string representations of the brackets
-
-def _bracket_scope(index, left_bracket, right_bracket):
-    _, left_point, left_kind = left_bracket
-    _, right_point, right_kind = right_bracket
-    return index, (left_point, right_point), (left_kind, right_kind)
-
-def _index(scope): return scope[0]
-
-def outer_index(scope): return scope[0][0]
-def inner_index(scope): return scope[0][1]
-
-
-def scope_bracket_regions((index, (begin, end), (left, right))):
-    """Constructs regions bound to the brackets of the scope.
-
-    Args:
-        scope - the scope in question
-
-    Returns:
-        left, right - a pair of (begin, end) tuples that delimit
-                      the brackets of the scope
-    """
-    return (begin, begin + len(left)), (end, end + len(right))
-
-
-def scope_expression_region((index, (begin, end), (left, right))):
-    """Constructs a region bound to the extents of the scope.
-
-    Args:
-        scope - the scope in question
-
-    Returns:
-        expression_scope
-            - the (begin, end) tuple that delimits the scope
-              (the inside of the scope as well as its brackets)
-    """
-    return (begin, end + len(right))
-
-
 def compute_bracket_scopes(brackets, indices):
     """Computes bracket scopes from brackets and their indices.
 
@@ -424,50 +358,14 @@ def compute_bracket_scopes(brackets, indices):
     indexed_brackets = zip(indices, brackets)
 
     for i, (left_index, left_bracket) in enumerate(indexed_brackets):
-        if _is_right(left_bracket): continue
+        if left_bracket.is_right(): continue
 
         remaining_brackets = enumerate(indexed_brackets[i+1:], i+1)
         for j, (right_index, right_bracket) in remaining_brackets:
-            if _is_left(right_bracket): continue
+            if right_bracket.is_left(): continue
 
             if indices_equal(left_index, right_index):
-                scopes.append(_bracket_scope(left_index, left_bracket, right_bracket))
+                scopes.append(Scope(left_index, left_bracket, right_bracket))
                 break
 
     return scopes
-
-#
-# Scope filters
-#
-
-def is_not_consistent((index, range, brackets), supported_brackets):
-    """A predicate for consistent scopes."""
-    return brackets not in supported_brackets
-
-
-def is_primary_mainline(((outer_index, inner_index), range, brackets)):
-    """A predicate for primary mainline scopes."""
-    return (inner_index == 0) and (outer_index == 0)
-
-
-def is_secondary_mainline(((outer_index, inner_index), range, brackets)):
-    """A predicate for secondary mainline scopes."""
-    return (inner_index == 0) and (outer_index != 0)
-
-
-def is_offside(((outer_index, inner_index), range, brackets)):
-    """A predicate for offside scopes."""
-    return inner_index > 0
-
-
-def is_adjacent((index, (begin, end), (left, right)), cursors):
-    """A predicate for adjacent scopes."""
-    def is_an_endpoint(cursor):
-        return ((begin <= cursor) and (cursor < begin + len(left))) \
-               or ((end < cursor) and (cursor <= end + len(right)))
-
-    for cursor in cursors:
-        if is_an_endpoint(cursor):
-            return True
-    else:
-        return False

@@ -2,21 +2,10 @@ import sublime
 
 from heapq import heapify, heappop, heapreplace
 
-from bracket_scopes \
-    import outer_index, inner_index, scope_bracket_regions, \
-           scope_expression_region, is_not_consistent, is_primary_mainline, \
-           is_secondary_mainline, is_offside, is_adjacent
-
 from lisp_highlight_configuration \
     import ColorMode, RegionColor, Configuration, is_transparent
 
-# Keeping the extent first is important for not doing any __metashit__
-# to make colorable regions have a proper order. The order matters
-# because heapq's functions cannot accept keys or comparators.
-def _colorable_region(extent, fg_color, bg_color_stack):
-    return (extent, fg_color, bg_color_stack)
-
-def extent(colorable_region): return colorable_region[0]
+from types import Region, Scope, ColorableSpan
 
 
 def color_scopes(scopes, config, cursors, supported_brackets):
@@ -40,30 +29,30 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         [colorable_regions] - a list of resulting colorable regions
     """
     def color_type_of(scope):
-        if is_not_consistent(scope, supported_brackets):
+        if scope.is_not_consistent_with(supported_brackets):
             return RegionColor.INCONSISTENT, None
 
-        if is_primary_mainline(scope):
+        if scope.is_primary_mainline():
             return RegionColor.PRIMARY, None
 
-        if is_secondary_mainline(scope):
-            return RegionColor.SECONDARY, outer_index(scope)
+        if scope.is_secondary_mainline():
+            return RegionColor.SECONDARY, scope.outer_index
 
-        if is_adjacent(scope, cursors):
+        if scope.is_adjacent_to(cursors):
             return RegionColor.ADJACENT, None
 
-        if is_offside(scope):
-            return RegionColor.OFFSIDE, inner_index(scope)
+        if scope.is_offside():
+            return RegionColor.OFFSIDE, scope.inner_index
 
     def extents_of(scope, mode):
         if mode is ColorMode.NONE:
             return []
 
         if mode is ColorMode.BRACKETS:
-            return list(scope_bracket_regions(scope))
+            return list(scope.bracket_regions())
 
         if mode is ColorMode.EXPRESSION:
-            return [scope_expression_region(scope)]
+            return [scope.expression_region()]
 
     def suitable(scope, (kind, index)):
         if kind is RegionColor.OFFSIDE:
@@ -73,25 +62,19 @@ def color_scopes(scopes, config, cursors, supported_brackets):
             need_left = config.adjacent_left
             need_right = config.adjacent_right
 
-            def is_at_left((index, (begin, end), (left, right)), cursor):
-                return (begin <= cursor) and (cursor < begin + len(left))
-
-            def is_at_right((index, (begin, end), (left, right)), cursor):
-                return (end < cursor) and (cursor <= end + len(right))
-
             for cursor in cursors:
-                if (need_left and is_at_left(scope, cursor)) or \
-                   (need_right and is_at_right(scope, cursor)):
+                if (need_left and scope.left_bracket.contains(cursor)) or \
+                   (need_right and scope.right_bracket.contains(cursor)):
                     return True
             else:
                 return False
 
         return True
 
-    def not_nested(scope1, scope2):
-        begin1, end1 = scope_expression_region(scope1)
-        begin2, end2 = scope_expression_region(scope2)
-        return end1 < begin2
+    def touching(left_scope, right_scope):
+        left_region = left_scope.expression_region()
+        right_region = right_scope.expression_region()
+        return left_region.touches(right_region)
 
     result = []
     bg_scope_stack = []
@@ -105,13 +88,13 @@ def color_scopes(scopes, config, cursors, supported_brackets):
         if mode is ColorMode.NONE:
             continue
 
-        while bg_scope_stack and not_nested(bg_scope_stack[-1], scope):
+        while bg_scope_stack and not touching(bg_scope_stack[-1], scope):
             bg_scope_stack.pop()
 
         bg_color_stack = map(color_type_of, bg_scope_stack)
 
         for extent in extents_of(scope, mode):
-            region = _colorable_region(extent, fg_color_type, bg_color_stack)
+            region = ColorableSpan(extent, fg_color_type, bg_color_stack)
             result.append(region)
 
         if mode is ColorMode.EXPRESSION:
@@ -120,8 +103,8 @@ def color_scopes(scopes, config, cursors, supported_brackets):
     return result
 
 
-def split_into_disjoint(regions, lines):
-    """Splits a list of colorable regions into disjoint colorable regions.
+def split_into_disjoint(spans, lines):
+    """Splits a list of colorable spans into disjoint colorable spans.
 
     This is necessary as Sublime Text does not handle region intersections
     properly, so we have to split them up by ourselves. Splitting by line
@@ -129,16 +112,16 @@ def split_into_disjoint(regions, lines):
     backgrounds for current lines.
 
     Args:
-        [regions] - a list of colorable regions to be split
+        [spans] - a list of colorable spans to be split
 
-        [lines] - a list of (begin, end) region tuples denoting the lines
+        [lines] - a list of regions denoting the lines
 
     Returns:
-        [regions] - a sorted list of disjoint colorable regions
+        [spans] - a sorted list of disjoint colorable spans
     """
-    if not regions: return []
+    if not spans: return []
 
-    # Throwing in fake zero-length regions to denote the line boundaries. They
+    # Throwing in fake zero-length spans to denote the line boundaries. They
     # will be used only for splitting and will get filtered out of the results.
     #
     # Lines are (begin, end) where begin is the point at the start of the line
@@ -146,15 +129,15 @@ def split_into_disjoint(regions, lines):
     # the beginnings and the trailing end.
 
     def make_linebreak(point):
-        return _colorable_region((point, point), None, None)
+        return ColorableSpan(Region(point, point), None, None)
 
-    def linebreak((extent, fg_color, bg_color_stack)):
-        return (fg_color is None) and (bg_color_stack is None)
+    def linebreak(span):
+        return (span.foreground is None) and (span.background_stack is None)
 
-    linebreaks = map(make_linebreak, [L[0] for L in lines] + [lines[-1][1]])
+    linebreaks = map(make_linebreak, [L.begin for L in lines] + [lines[-1].end])
 
-    # We make use of the heap property to efficiently split the regions into
-    # disjoint parts with a sweeping line algorithm. The resulting region list
+    # We make use of the heap property to efficiently split the spans into
+    # disjoint parts with a sweeping line algorithm. The resulting span list
     # also gets automagically sorted.
 
     def heap_min(heap):
@@ -163,88 +146,82 @@ def split_into_disjoint(regions, lines):
     def heap_min_next(heap):
         return min(heap[1], heap[2]) if len(heap) > 2 else heap[1]
 
-    regions = regions[:]
-    regions.extend(linebreaks)
-    heapify(regions)
+    spans = spans[:]
+    spans.extend(linebreaks)
+    heapify(spans)
 
-    # Actually, bracket scopes do not strictly _overlap_. They are _contained_
-    # inside each other. But this is assumed and the strict check is omitted.
+    def overlap(left_span, right_span):
+        return left_span.extent.overlaps(right_span.extent)
 
-    def overlap(left, right):
-        (begin1, end1), (begin2, end2) = extent(left), extent(right)
-        return begin2 < end1
+    def split(outer_span, inner_span):
+        extent1 = Region(outer_span.extent.begin, inner_span.extent.begin)
+        extent2 = Region(inner_span.extent.end, outer_span.extent.end)
+        foreground = outer_span.foreground
+        background_stack = outer_span.background_stack
 
-    def split(outer, inner):
-        def split((begin1, end1), (begin2, end2)):
-            return (begin1, begin2), (end2, end1)
-
-        _, fg_color, bg_color_stack = outer
-        extent1, extent2 = split(extent(outer), extent(inner))
-
-        return _colorable_region(extent1, fg_color, bg_color_stack), \
-               _colorable_region(extent2, fg_color, bg_color_stack)
+        return ColorableSpan(extent1, foreground, background_stack), \
+               ColorableSpan(extent2, foreground, background_stack)
 
     result = []
-    while len(regions) > 1:
-        leftmost, next_one = heap_min(regions), heap_min_next(regions)
-        # Invariant: leftmost must be disjoint from all other regions
+    while len(spans) > 1:
+        leftmost, next_one = heap_min(spans), heap_min_next(spans)
+        # Invariant: leftmost must be disjoint from all other spans
 
         if overlap(leftmost, next_one):
             leftmost, following = split(leftmost, next_one)
-            heapreplace(regions, following)
+            heapreplace(spans, following)
         else:
-            heappop(regions)
+            heappop(spans)
 
         if not linebreak(leftmost):
             result.append(leftmost)
 
-    last_region = regions[0]
-    if not linebreak(last_region):
-        result.append(last_region)
+    last_span = spans[0]
+    if not linebreak(last_span):
+        result.append(last_span)
 
     return result
 
 
-def prepend_background(colorable_regions, line_extents):
-    """Prepends proper terminating background to colorable regions.
+def prepend_background(spans, line_extents):
+    """Prepends proper terminating background to colorable spans.
 
-    It is necessary to ensure that each colorable region has at least something
+    It is necessary to ensure that each colorable span has at least something
     in its background color stack, and that this something is not transparent.
-    This will be either a 'current line' background for regions that are located
-    in the same line as the cursor or a 'normal' background for everything else.
+    This will be either a 'current line' background for spans that are located
+    in the same line as the cursor or a normal background for everything else.
 
     Args:
-        [colorable_regions] - a list of colorable regions to update
+        [spans] - a list of colorable spans to update
 
         [line_extents] - a list of regions denoting the cursors' lines
 
     Returns:
-        [colorable_regions] - a list of updated colorable regions
+        [spans] - a list of updated colorable spans
     """
-    def contains((begin1, end1), (begin2, end2)):
-        return (begin2 <= begin1) and (end1 <= end2)
-
-    def prepend_background((extent, fg_color, bg_color_stack)):
+    def prepend_background(span):
         current_line_color = [(RegionColor.CURRENT_LINE, None)]
         background_color = [(RegionColor.BACKGROUND, None)]
 
+        background_stack = span.background_stack
+
         for line in line_extents:
-            if contains(extent, line):
-                bg_color_stack = current_line_color + bg_color_stack
+            if line.contains(span.extent):
+                background_stack = current_line_color + background_stack
                 break
         else:
-            bg_color_stack = background_color + bg_color_stack
+            background_stack = background_color + background_stack
 
-        return _colorable_region(extent, fg_color, bg_color_stack)
+        return ColorableSpan(span.extent, span.foreground, background_stack)
 
-    return map(prepend_background, colorable_regions)
+    return map(prepend_background, spans)
 
 
-def compute_region_color((extent, fg_color, bg_color_stack), config):
-    """Determines the 'flat' color of a region, with transparency removed.
+def compute_span_color(span, config):
+    """Determines the exact color of a span, with transparency removed.
 
     Args:
-        colorable_region - a colorable region to be colored
+        span - a colorable span to be colored
 
         config - the Configuration to use for picking colors
 
@@ -257,9 +234,9 @@ def compute_region_color((extent, fg_color, bg_color_stack), config):
             color = color[(index - 1) % len(color)]
         return color
 
-    foreground, background = color_of(fg_color)
+    foreground, background = color_of(span.foreground)
 
-    underlying_background = reversed(bg_color_stack)
+    underlying_background = reversed(span.background_stack)
     while is_transparent(background):
         _, background = color_of(next(underlying_background))
 

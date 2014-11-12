@@ -4,13 +4,11 @@ import sublime_plugin
 from bracket_scopes \
     import cursors_of_view, expand_cursors_to_regions, merge_adjacent_regions, \
            index_brackets, locate_brackets, merge_bracket_indices, \
-           compute_bracket_scopes, filter_consistent_scopes, \
-           primary_mainline_scope, secondary_mainline_scopes, offside_scopes, \
-           adjacent_scopes, scope_bracket_regions, scope_expression_region, \
-           current_lines_of_view
+           compute_bracket_scopes, current_lines_of_view
 
 from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
+from types import * # and this
 
 scan_limit = 100
 
@@ -46,11 +44,6 @@ class LispSelectionListener(sublime_plugin.EventListener):
             indexed_bracket_scopes = compute_bracket_scopes(brackets, merged_indices)
             #print("ibs: ", indexed_bracket_scopes)
 
-            consistent_scopes, inconsistent_scopes = \
-                filter_consistent_scopes(indexed_bracket_scopes, supported_brackets)
-            #print("cs: ", consistent_scopes)
-            #print("is: ", inconsistent_scopes)
-
             config = Configuration({
                 'primary_mode': ColorMode.EXPRESSION,
                 'secondary_mode': ColorMode.EXPRESSION,
@@ -85,17 +78,17 @@ class LispSelectionListener(sublime_plugin.EventListener):
 
             colored_regions = {}
             for region in fu:
-                color = compute_region_color(region, config)
+                color = compute_span_color(region, config)
 
                 regions = colored_regions.get(color, [])
-                regions.append(extent(region))
+                regions.append(region.extent)
 
                 colored_regions[color] = regions
             #print("cr: ", colored_regions)
 
             altogether = []
             for color, regions in colored_regions.iteritems():
-                altogether.extend(map(lambda (b, e): sublime.Region(b, e), regions))
+                altogether.extend(map(Region.as_sublime_region, regions))
 
             view.erase_regions("test")
             view.add_regions("test", altogether, "invalid")
