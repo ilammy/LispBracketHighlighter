@@ -35,6 +35,12 @@ class Region:
         """True if this region contains another one entirely."""
         return (self.begin <= other.begin) and (other.end <= self.end)
 
+    def __lt__(self, other): return (self.begin < other.begin)
+    def __le__(self, other): return (self.begin <= other.begin)
+
+    def __repr__(self):
+        return repr((self.begin, self.end))
+
 
 def span(from_region, to_region):
     """Returns a region spanning both given regions."""
@@ -232,3 +238,9 @@ class ColorableSpan:
         self.extent = extent
         self.foreground = foreground
         self.background_stack = background_stack
+
+    def __lt__(self, other): return self.extent < other.extent
+    def __le__(self, other): return self.extent <= other.extent
+
+    def __repr__(self):
+        return repr((self.extent, self.foreground, self.background_stack))

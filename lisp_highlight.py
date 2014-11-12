@@ -81,7 +81,7 @@ class LispSelectionListener(sublime_plugin.EventListener):
                 color = compute_span_color(region, config)
 
                 regions = colored_regions.get(color, [])
-                regions.append(extent(region))
+                regions.append(region.extent)
 
                 colored_regions[color] = regions
             #print("cr: ", colored_regions)
