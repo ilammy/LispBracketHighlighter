@@ -9,6 +9,7 @@ from bracket_scopes \
 from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
 from types import * # and this
+from scope_colors import * # and this as well
 
 scan_limit = 100
 
@@ -17,6 +18,11 @@ supported_brackets = [('(', ')'), ('[', ']'), ('{', '}'),]
 class LispSelectionListener(sublime_plugin.EventListener):
 
     def on_selection_modified(self, view):
+
+        add_or_replace_colored_scopes(
+            current_sublime_theme_file(view),
+            format_sublime_color_scopes([(0xEE8888, 0x88EE88)])
+        )
 
         cursors = cursors_of_view(view)
         #print("c: ", cursors)
@@ -90,5 +96,7 @@ class LispSelectionListener(sublime_plugin.EventListener):
             for color, regions in colored_regions.iteritems():
                 altogether.extend(map(Region.as_sublime_region, regions))
 
-            view.erase_regions("test")
-            view.add_regions("test", altogether, "invalid")
+            scope_name = scope_name_for_color(0xEE8888, 0x88EE88)
+
+            view.erase_regions(scope_name)
+            view.add_regions(scope_name, altogether, scope_name)
