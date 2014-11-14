@@ -23,20 +23,31 @@ class Region:
 
     def overlaps(self, other):
         """True if this regions overlaps the other one."""
-        assert (self <= other)
+        assert (self.begin <= other.begin)
         return (other.begin < self.end)
 
     def touches(self, other):
         """True if this regions overlaps or touches the other one."""
-        assert (self <= other)
+        assert (self.begin <= other.begin)
         return (other.begin <= self.end)
 
     def contains(self, other):
         """True if this region contains another one entirely."""
         return (self.begin <= other.begin) and (other.end <= self.end)
 
-    def __lt__(self, other): return (self.begin < other.begin)
-    def __le__(self, other): return (self.begin <= other.begin)
+    def __lt__(self, other):
+        return (self.begin < other.begin)
+
+    def __le__(self, other):
+        # Such peculiar ordering is required to correctly handle nested ranges.
+        # Inner ranges should be handled before their enclosing ones, and if
+        # ranges begin at the same point, the shorter one is nested deeper.
+        # If they do not begin at the same point then it is obvious which one
+        # should be handled first.
+        if (self.begin == other.begin):
+            return (self.end <= other.end)
+        else:
+            return (self.begin < other.begin)
 
     def __repr__(self):
         return repr((self.begin, self.end))

@@ -153,6 +153,16 @@ def split_into_disjoint(spans, lines):
     def overlap(left_span, right_span):
         return left_span.extent.overlaps(right_span.extent)
 
+    def left_touch(span1, span2):
+        return span1.extent.begin == span2.extent.begin
+
+    def trim(inner_span, outer_span):
+        extent = Region(inner_span.extent.end, outer_span.extent.end)
+        foreground = outer_span.foreground
+        background_stack = outer_span.background_stack
+
+        return ColorableSpan(extent, foreground, background_stack)
+
     def split(outer_span, inner_span):
         extent1 = Region(outer_span.extent.begin, inner_span.extent.begin)
         extent2 = Region(inner_span.extent.end, outer_span.extent.end)
@@ -168,9 +178,20 @@ def split_into_disjoint(spans, lines):
         # Invariant: leftmost must be disjoint from all other spans
 
         if overlap(leftmost, next_one):
-            leftmost, following = split(leftmost, next_one)
-            heapreplace(spans, following)
+            if left_touch(leftmost, next_one):
+                # LL...... -> LL......
+                # NNNNN...    ..FFF...
+                following = trim(leftmost, next_one)
+                heappop(spans)
+                heapreplace(spans, following)
+            else:
+                # LLLLLLL. -> LL...FF.
+                # ..NNN...    ..NNN...
+                leftmost, following = split(leftmost, next_one)
+                heapreplace(spans, following)
         else:
+            # LLL.....
+            # ....NNN.
             heappop(spans)
 
         if not linebreak(leftmost):
