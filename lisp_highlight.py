@@ -19,10 +19,17 @@ class LispSelectionListener(sublime_plugin.EventListener):
 
     def on_selection_modified(self, view):
 
+        theme_filename = current_sublime_theme_file(view)
+
         add_or_replace_colored_scopes(
-            current_sublime_theme_file(view),
+            theme_filename,
             format_sublime_color_scopes([(0xEE8888, 0x88EE88)])
         )
+
+        try:
+            print(parse_essential_colors(theme_filename))
+        except ValueError:
+            print("Fucked up: ")
 
         cursors = cursors_of_view(view)
         #print("c: ", cursors)

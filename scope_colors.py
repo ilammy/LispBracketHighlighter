@@ -86,3 +86,54 @@ def add_or_replace_colored_scopes(theme_filename, serialized_scopes):
 
     with open(theme_filename, 'w') as theme_file:
         theme_file.write(theme_file_contents)
+
+
+def parse_essential_colors(theme_filename):
+    """Extract essential colors from a theme file.
+
+    The essential colors are: text color, background color, and current line
+    background color.
+
+    Args:
+        theme_filename - the path to the theme file to examine
+
+    Returns:
+        (text, background, current_line)
+            - the extracted colors, as 24-bit integers, None if missing
+
+    Raises:
+        ValueError - on parse failures
+    """
+    def compile(pattern): return re.compile(pattern, re.DOTALL)
+
+    toplevel_settings = compile(r'<array>.*?<key>settings</key>')
+    toplevel_settings_limit = compile(r'</dict>')
+
+    foreground = compile(r'<key>foreground</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
+    background = compile(r'<key>background</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
+    lhighlight = compile(r'<key>lineHighlight</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
+
+    # Theme files (usually) have reasonable size and should fit into RAM.
+
+    with open(theme_filename, 'r') as theme_file:
+        theme_file_contents = theme_file.read()
+
+    start = toplevel_settings.search(theme_file_contents)
+    if not start:
+        raise ValueError("Could not locate toplevel settings start")
+    start = start.end()
+
+    end = toplevel_settings_limit.search(theme_file_contents, start)
+    if not end:
+        raise ValueError("Could not locate toplevel settings end")
+    end = end.start()
+
+    fg = foreground.search(theme_file_contents, start, end)
+    bg = background.search(theme_file_contents, start, end)
+    lh = lhighlight.search(theme_file_contents, start, end)
+
+    if fg: fg = int(fg.group(1), 16)
+    if bg: bg = int(bg.group(1), 16)
+    if lh: lh = int(lh.group(1), 16)
+
+    return fg, bg, lh
