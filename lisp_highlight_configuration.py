@@ -11,12 +11,7 @@ class AdjacentMode: # flags
 RegionColor = make_enum('PRIMARY', 'SECONDARY', 'OFFSIDE', 'ADJACENT',
     'INCONSISTENT', 'BACKGROUND', 'CURRENT_LINE')
 
-def is_transparent(color):
-    return color == Configuration.TRANSPARENT_COLOR
-
 class Configuration:
-
-    TRANSPARENT_COLOR = -1
 
     def __init__(self, config):
         # Temporary hardcoded keys

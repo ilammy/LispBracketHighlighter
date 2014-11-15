@@ -21,6 +21,9 @@ def compute_possible_scope_colors(color_pairs):
         foregrounds.add(foreground)
         backgrounds.add(background)
 
+    foregrounds.discard(None)
+    backgrounds.discard(None)
+
     return [(fg, bg) for fg in foregrounds for bg in backgrounds]
 
 

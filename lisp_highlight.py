@@ -70,8 +70,8 @@ class LispSelectionListener(sublime_plugin.EventListener):
                 'background_color': (None, 0x123456),
                 'current_line_color': (None, 0x789ABC),
 
-                'primary_color': (0x110000, Configuration.TRANSPARENT_COLOR),
-                'secondary_colors': [(0x220000, Configuration.TRANSPARENT_COLOR), (0x330000, Configuration.TRANSPARENT_COLOR)],
+                'primary_color': (0x110000, None),
+                'secondary_colors': [(0x220000, None), (0x330000, None)],
                 'offside_colors': [(0x440000, 0x004400), (0x550000, 0x005500), (0x660000, 0x006600)],
                 'adjacent_color': (0x770000, 0x007700),
                 'inconsistent_color': (0x880000, 0x008800)
