@@ -1,4 +1,5 @@
 import sublime
+import plist
 import re
 
 def compute_possible_scope_colors(color_pairs):
@@ -100,40 +101,28 @@ def parse_essential_colors(theme_filename):
     Returns:
         (text, background, current_line)
             - the extracted colors, as 24-bit integers, None if missing
-
     Raises:
         ValueError - on parse failures
     """
-    def compile(pattern): return re.compile(pattern, re.DOTALL)
+    def color_key(dict, name):
+        color_tag = plist.dict_get(dict, name)
+        if color_tag is None:
+            return None
 
-    toplevel_settings = compile(r'<array>.*?<key>settings</key>')
-    toplevel_settings_limit = compile(r'</dict>')
+        value = plist.string_value(color_tag)
+        match = re.match(r'#([0-9A-Fa-f]{6})', value)
+        if not match:
+            raise ValueError("'%s' is not a valid color" % value)
 
-    foreground = compile(r'<key>foreground</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
-    background = compile(r'<key>background</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
-    lhighlight = compile(r'<key>lineHighlight</key>.*?<string>#([0-9A-Fa-f]{6})</string>')
+        return int(match.group(1), 16)
 
-    # Theme files (usually) have reasonable size and should fit into RAM.
+    theme_file = plist.parse(theme_filename)
 
-    with open(theme_filename, 'r') as theme_file:
-        theme_file_contents = theme_file.read()
+    toplevel_settings = plist.dict_get(theme_file, 'settings')
+    toplevel_dict = plist.array_get(toplevel_settings, 0)
 
-    start = toplevel_settings.search(theme_file_contents)
-    if not start:
-        raise ValueError("Could not locate toplevel settings start")
-    start = start.end()
+    theme_settings = plist.dict_get(toplevel_dict, 'settings')
 
-    end = toplevel_settings_limit.search(theme_file_contents, start)
-    if not end:
-        raise ValueError("Could not locate toplevel settings end")
-    end = end.start()
-
-    fg = foreground.search(theme_file_contents, start, end)
-    bg = background.search(theme_file_contents, start, end)
-    lh = lhighlight.search(theme_file_contents, start, end)
-
-    if fg: fg = int(fg.group(1), 16)
-    if bg: bg = int(bg.group(1), 16)
-    if lh: lh = int(lh.group(1), 16)
-
-    return fg, bg, lh
+    return color_key(theme_settings, 'foreground'), \
+           color_key(theme_settings, 'background'), \
+           color_key(theme_settings, 'lineHighlight')
