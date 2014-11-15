@@ -52,6 +52,30 @@ def format_sublime_color_scopes(color_pairs):
     return result
 
 
+def construct_sulime_color_scopes(color_pairs):
+    """
+    """
+    result = []
+    for foreground, background in color_pairs:
+        scope_name = scope_name_for_color(foreground, background)
+
+        scope_element = plist.make_string(scope_name)
+        foreground_element = plist.make_string('#%06X' % foreground)
+        background_element = plist.make_string('#%06X' % background)
+
+        colors = plist.make_dict()
+        plist.dict_add_key(colors, 'foreground', foreground_element)
+        plist.dict_add_key(colors, 'foreground', foreground_element)
+
+        scope = plist.make_dict()
+        plist.dict_add_key(scope, 'scope', scope_element)
+        plist.dict_add_key(scope, 'settings', colors)
+
+        result += scope
+
+    return result
+
+
 def scope_name_for_color(foreground, background):
     """Returns a name of Sublime scope that has the specified color."""
     return "lisp_highlight.%06X.%06X" % (foreground, background)

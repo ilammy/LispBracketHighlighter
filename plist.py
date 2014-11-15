@@ -44,6 +44,22 @@ def dict_get(dict, key):
     return None
 
 
+def make_dict():
+    """
+    """
+    return xml.Element('dict')
+
+
+def dict_add_key(dict, key, value):
+    """
+    """
+    key_element = xml.Element('key')
+    key_element.text = key
+
+    dict.append(key_element)
+    dict.append(value)
+
+
 def array_get(array, index):
     """
     """
@@ -64,3 +80,11 @@ def string_value(string):
         raise ValueError("<%s> is not a <string>" % string.tag)
 
     return string.text
+
+
+def make_string(string):
+    """
+    """
+    string_element = xml.Element('string')
+    string_element.text = string
+    return string_element
