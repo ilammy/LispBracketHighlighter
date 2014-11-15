@@ -258,7 +258,7 @@ def compute_span_color(span, config):
     foreground, background = color_of(span.foreground)
 
     underlying_background = reversed(span.background_stack)
-    while is_transparent(background):
+    while background is None:
         _, background = color_of(next(underlying_background))
 
     return foreground, background

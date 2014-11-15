@@ -9,6 +9,7 @@ from bracket_scopes \
 from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
 from types import * # and this
+from scope_colors import * # and this as well
 
 scan_limit = 100
 
@@ -17,6 +18,18 @@ supported_brackets = [('(', ')'), ('[', ']'), ('{', '}'),]
 class LispSelectionListener(sublime_plugin.EventListener):
 
     def on_selection_modified(self, view):
+
+        theme_filename = current_sublime_theme_file(view)
+
+        add_or_replace_colored_scopes(
+            theme_filename,
+            format_sublime_color_scopes([(0xEE8888, 0x88EE88)])
+        )
+
+        try:
+            print(parse_essential_colors(theme_filename))
+        except ValueError:
+            print("Fucked up: ")
 
         cursors = cursors_of_view(view)
         #print("c: ", cursors)
@@ -57,8 +70,8 @@ class LispSelectionListener(sublime_plugin.EventListener):
                 'background_color': (None, 0x123456),
                 'current_line_color': (None, 0x789ABC),
 
-                'primary_color': (0x110000, Configuration.TRANSPARENT_COLOR),
-                'secondary_colors': [(0x220000, Configuration.TRANSPARENT_COLOR), (0x330000, Configuration.TRANSPARENT_COLOR)],
+                'primary_color': (0x110000, None),
+                'secondary_colors': [(0x220000, None), (0x330000, None)],
                 'offside_colors': [(0x440000, 0x004400), (0x550000, 0x005500), (0x660000, 0x006600)],
                 'adjacent_color': (0x770000, 0x007700),
                 'inconsistent_color': (0x880000, 0x008800)
@@ -90,5 +103,7 @@ class LispSelectionListener(sublime_plugin.EventListener):
             for color, regions in colored_regions.iteritems():
                 altogether.extend(map(Region.as_sublime_region, regions))
 
-            view.erase_regions("test")
-            view.add_regions("test", altogether, "invalid")
+            scope_name = scope_name_for_color(0xEE8888, 0x88EE88)
+
+            view.erase_regions(scope_name)
+            view.add_regions(scope_name, altogether, scope_name)
