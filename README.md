@@ -8,6 +8,6 @@ the user experience while browsing and editing Lisp code.
 This is effectively a dumbed down version of [BracketHighligher](//github.com/facelessuser/BracketHighlighter).
 I was bored of counting the brackets myself and was interested in writing a plugin for SublimeText.
 
-Configuration options are explained [inline](LispBracketHighlighter.sublime-settings).
+Configuration options are explained [inline](LispBracketHighlighter.sublime-settings.example).
 
 _LispBracketHighlighter_ is distributed under **[3-clause BSD license](LICENSE)**.

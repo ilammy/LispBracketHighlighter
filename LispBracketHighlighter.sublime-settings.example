@@ -1,0 +1,257 @@
+// This is an example configuration file for LispBracketHighlighter with all
+// options explained. Copy it, remove the ".example" from the name, edit the
+// file according to your taste, and place it somewhere Sublime can find it.
+{
+    // Global cutout. Use this to quickly disable LispBracketHighlighter.
+    //
+    // Values: true (default), false
+    "enabled": false,
+
+    // List of supported bracket pairs to be detected and highlighted.
+    //
+    // Values: two-element arrays of strings to be matched exactly
+    //         for left and right brackets
+    //
+    "brackets":
+    [
+        ["(", ")"], ["[", "]"], ["{", "}"]
+    ],
+
+    // FEATURE TODO
+    //
+    // LispBracketHighlighter should support fixed colors that are hardwired
+    // into the color scheme. Like 'lisp_highlight.primary' which will be used
+    // to highlight primary scopes. Need to think over about multiple colors
+    // and transparent backgrounds.
+    //
+    // "use color scheme": true,
+
+    // Settings for primary mainline scopes.
+    //
+    // These are the scopes that immediately contain the cursor.
+    "primary":
+    {
+        // Local cutout. Use this to quickly disable specific scope type.
+        //
+        // Values: true (default), false
+        "enabled": true,
+
+        // Highlight mode for this scope type.
+        //
+        // Values: "none"       - highlight nothing (default)
+        //         "brackets"   - highlight only the brackets
+        //         "expression" - highlight the whole bracketed expression
+        "mode": "expression",
+
+        // Color to use for highlighting.
+        //
+        // Two syntaxes are supported for specifying colors, this is an example
+        // of full syntax. It allows to specify both foreground and background.
+        //
+        // If the color is absent, highlighting of this scope type is disabled.
+        "color":
+        {
+            // Color to use for the text.
+            "foreground": "#001122",
+
+            // Color to use for the background.
+            "background": "#334455"
+
+            // You can leave out either foreground or background.
+            //
+            // Leaving out foreground means that the default color will be used 
+            // to highlight the content of the scope. (Not the actual colors of
+            // the individual characters, sorry for that.)
+            //
+            // Leaving out background means that the scope is transparent and
+            // the background of the underlying non-transparent scope (or the
+            // 'terminal' Sublime background) will be used for highlighting.
+            //
+            // Leaving out both disables the highlighing of the scope.
+
+            // Supported color formats:
+            //      /#?[0-9a-fA-F]{6}/  - hex triplet
+            //      /#?[0-9a-fA-F]{3}/  - hex triplet (short form)
+            //      CSS color name      - case-insensitive
+            //      integer number      - in [0; 2^24) range please
+            //      null                - as if the color is left out
+        }
+    },
+
+    // Settings for secondary mainline scopes.
+    //
+    // These are the scopes that immediately contain the primary mainline scope
+    // or another secondary mainline one.
+    "secondary":
+    {
+        // The same as in "primary"
+        "enabled": false,
+
+        // The same as in "primary"
+        "mode": "brackets",
+
+        // As there can be more that one secondary or offside scope, you can
+        // specify several colors for them. They will be used to highlight
+        // scopes at different nesting levels with different colors.
+        "colors":
+        [
+            { "background": null, "foreground": "#404" },
+
+            // This is an example of implicit syntax of color specifications.
+            // Its meaning depends on the "mode" of the scope:
+            //
+            //   * for "brackets" this is equivalent to specifying only
+            //     the "foreground" while leaving out the "background"
+            //     (making it transparent)
+            //
+            //   * for "expression" the color roles get reversed
+            //
+            //   * for "none" it does not matter
+            //
+            // Supported color formats are the same.
+            "#0dead0",
+
+            // These are ignored. As if you did not type it at all.
+            null
+        ],
+
+        // Also you can limit highlighting to some depth. The scopes that are
+        // nested deeper than this will not be highlighted at all.
+        //
+        // Indexing starts from one. If not specified then there is no limit.
+        "depth limit": 4
+    },
+
+    // Settings for offside scopes.
+    //
+    // All other scopes that do not belong to the mainline are called offside.
+    // These are also nesting like the secondary mainline ones.
+    "offside":
+    {
+        // The same as in "primary"
+        "enabled": true,
+
+        // The same as in "primary"
+        "mode": "brackets",
+
+        // The same as in "secondary"
+        "depth limit": 1,
+
+        // You can also specify only one color for offside or secondary scopes.
+        // This is fully equivalent to "colors" with one element.
+        // Obviously, you cannot use both forms at the same time.
+        "color": "Maroon"
+    },
+
+    // Settings for scopes adjacent to cursors.
+    //
+    // When the cursor only touches a bracket at the edge of a bracket scope,
+    // the scope is said to be adjacent to the cursor. A scope is not adjacent
+    // if the cursor is inside and touches a bracket from inside, but it still
+    // is if the bracket spans multiple characters and the cursor is positioned
+    // in the middle of it.
+    //
+    // Mainline scopes cannot be adjacent, only an offside scope can be.
+    // If enabled, adjacency takes priority over offsideness.
+    //
+    // This highlight mode suits well for Lisp-like languages.
+    "adjacent":
+    {
+        // The same as in "primary"
+        "enabled": true,
+
+        // The same as in "primary"
+        "mode": "brackets",
+
+        // The same as in "primary"
+        "color": 42,
+
+        // With this you control which side of the scope triggers highlighting.
+        //
+        // Values: "none"  - do not highlight at all (default)
+        //         "left"  - highlight only when touching the left side
+        //         "right" - the same but for the right one
+        //         "both"  - highlight always
+        "chirality": "both"
+    },
+
+    // Settings for scopes with inconsistent bracket pairs.
+    //
+    // Sometimes brackets do not match. This is for such cases. 'Do not match'
+    // should be read as 'this bracket pair is not found in "brackets"'.
+    //
+    // Indeed, a scope of any type can be inconsistent.
+    // If enabled, inconsistency takes priority over anything.
+    "inconsistent":
+    {
+        // The same as in "primary"
+        "enabled": true,
+
+        // The same as in "primary"
+        "mode": "expression",
+
+        // The same as in "primary"
+        "color": "#F25"
+    },
+
+    // (Sublime) scope blacklist.
+    //
+    // Each character in Sublime Text is assigned a property called scope which
+    // represents the syntactic meaning of the token this character belongs to.
+    // Sometimes it makes sense to not highlight certain scopes, like comments.
+    // You can name such scopes here.
+    "scope blacklist": [ "comment", "string" ],
+
+    // Per-language overrides.
+    //
+    // All settings above are generic and apply to all files. If you want
+    // finer control over highlighting then you should add your specific
+    // overrides to this list.
+    "overrides":
+    [
+        {
+            // Specifies the name of the syntax which this override applies to.
+            //
+            // This can be either a string or a nonempty list of strings.
+            "syntax": "JSON",
+
+            // Any options specified here take the priority. All other options
+            // will be taken from the generic settings or the defaults.
+            "offside": { "enabled": false },
+
+            // Overrides the list of brackets to use for this syntax.
+            // These are the only ones which will be sought for.
+            "brackets":
+            [
+                ["{", "}"], ["[", "]"]
+            ],
+
+            // Overrides the Sublime scope blacklist for this syntax.
+            // Use this if you do have some exceptions to exceptions.
+            "scope blacklist": []
+        },
+        {
+            // Ditto.
+            "syntax": ["Lisp", "Scheme", "Racket"],
+
+            // Use this to merely add some other brackets to the default list
+            // instead of replacing it entirely. Sorry, there is no way to
+            // remove some of the defaults, you will have to respell them out.
+            //
+            // (Also, you cannot use this together with plain "brackets".)
+            "additional brackets":
+            [
+                ["#(", ")"], ["#u8(", ")"]
+            ],
+
+            // The same goes for the scope blacklist as well. (As well.)
+            "additional scope blacklist": [ "number" ]
+        },
+        {
+            "syntax": "Plain text",
+            "enabled": false
+        }
+    ]
+
+    // Performance tweaks (?)
+}
