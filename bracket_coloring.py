@@ -3,7 +3,7 @@ import sublime
 from heapq import heapify, heappop, heapreplace
 
 from lisp_highlight_configuration \
-    import ColorMode, RegionColor, Configuration, is_transparent
+    import ColorMode, RegionColor, Configuration
 
 from types import Region, Scope, ColorableSpan
 
