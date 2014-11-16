@@ -10,12 +10,18 @@ from bracket_coloring import * # fix
 from lisp_highlight_configuration import * # fix too
 from types import * # and this
 from scope_colors import * # and this as well
+from configuration_unification import * # ugh...
+import pprint
 
 scan_limit = 100
 
 supported_brackets = [('(', ')'), ('[', ']'), ('{', '}'),]
 
 class LispSelectionListener(sublime_plugin.EventListener):
+
+    def __init__(self):
+        settings = sublime.load_settings('LispBracketHighlighter.sublime-settings')
+        pprint.pprint(extract_and_unify_configuration(settings))
 
     def on_selection_modified(self, view):
 

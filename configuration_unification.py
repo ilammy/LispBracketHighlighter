@@ -1,6 +1,7 @@
+import sublime
 import re
 
-from unify import boolean, string, integer, either, optional
+from unify import boolean, string, integer, either, optional, unify
 
 from utils import css_colors
 
@@ -65,11 +66,22 @@ def positive_integer(value):
 #
 
 """Supported color spec patterns."""
-color_pattern = \
+color_spec = \
     either( long_hex_triplet
           , short_hex_triplet
           , css_color_name
           , true_color_integer
+          , None
+          )
+
+
+"""Full/short color specs."""
+color_pattern = \
+    either( {
+                "foreground": optional(color_spec),
+                "background": optional(color_spec)
+            }
+          , color_spec
           , None
           )
 
@@ -120,11 +132,11 @@ configuration_pattern = \
         {
             "syntax": either(string, [string]),
 
-            "brackets":   optional([(string, string)]),
-            "additional brackets": [(string, string)],
+            "brackets":            optional([(string, string)]),
+            "additional brackets": optional([(string, string)]),
 
-            "scope blacklist":   optional([string]),            
-            "additional scope blacklist": [string],
+            "scope blacklist":            optional([string]),
+            "additional scope blacklist": optional([string]),
 
             "enabled": optional(boolean),
 
