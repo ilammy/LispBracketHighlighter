@@ -166,3 +166,32 @@ configuration_pattern = \
         }
     ]
 }
+
+#
+# Configuration processing
+#
+
+def extract_and_unify_configuration(sublime_settings):
+    """Parses, verifies and unifies LispBracketHighlighter settings.
+
+    Args:
+        sublime_settings - a sublime.Settings object to be parsed
+
+    Returns:
+        a dict with extracted configuration options and filled in defaults
+
+    Raises:
+        ValueError - on parse failures
+    """
+    settings = {
+        'enabled':          sublime_settings.get('enabled',         True),
+        'brackets':         sublime_settings.get('brackets',        []),
+        'primary':          sublime_settings.get('primary',         {}),
+        'secondary':        sublime_settings.get('secondary',       {}),
+        'offside':          sublime_settings.get('offside',         {}),
+        'adjacent':         sublime_settings.get('adjacent',        {}),
+        'inconsistent':     sublime_settings.get('inconsistent',    {}),
+        'scope blacklist':  sublime_settings.get('scope blacklist', []),
+        'overrides':        sublime_settings.get('overrides',       []),
+    }
+    return unify(settings, configuration_pattern)
