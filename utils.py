@@ -115,3 +115,10 @@ css_colors = {
     'white':                0xFFFFFF,   'whitesmoke':           0xF5F5F5,
     'yellow':               0xFFFF00,   'yellowgreen':          0x9ACD32,
 }
+
+
+def repeated(iterable):
+    """Returns an iterator which indefinitely repeats the given sequence."""
+    while True:
+        for element in iterable:
+            yield element

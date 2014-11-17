@@ -1,3 +1,7 @@
+from itertools import izip
+
+from utils import repeated
+
 #
 # Type matchers
 #
@@ -70,7 +74,24 @@ def optional(pattern, default=None):
 # Unification
 #
 
-def unify(expression, pattern):
+class UnificationFailure(ValueError):
+    """Raised when `unify` fails to match an expression against a pattern.
+
+    Fields:
+        message - a human-readable string describing the error cause
+
+        stack - a list of dict keys encountered on the way to the error
+    """
+    def __init__(self, message, stack):
+        self.message = message
+        self.stack = stack
+
+    def __str__(self):
+        stacktrace = " > ".join(self.stack)
+        return stacktrace + ": " + self.message
+
+
+def unify(expression, pattern, stack=[]):
     """Unifies an expression against a pattern.
 
     To unify means to check the structure and types of the expression and its
@@ -109,143 +130,139 @@ def unify(expression, pattern):
       * lambda   - Matches a value against an arbitrary predicate.
                    Returns what the predicate returns.
     """
-    class UnificationFailure(ValueError):
-        def __init__(self, message, stack):
-            self.message = message
-            self.stack = stack
+    if isinstance(pattern, dict):
+        return unify_dict(expression, pattern, stack)
 
-        def __str__(self):
-            stacktrace = " > ".join(self.stack)
-            return stacktrace + ": " + self.message
+    if isinstance(pattern, list):
+        return unify_list(expression, pattern, stack)
 
-    def keyable(object):  return hasattr(object, '__getattribute__')
-    def iterable(object): return hasattr(object, '__iter__')
-    def callable(object): return hasattr(object, '__call__')
+    if isinstance(pattern, tuple):
+        return unify_tuple(expression, pattern, stack)
 
-    def unify_dict(expression, pattern, stack):
-        if not keyable(expression) or not iterable(expression):
-            message = "'%r' is not an object" % expression
-            raise UnificationFailure(message, stack)
+    if callable(pattern):
+        return unify_predicate(expression, pattern, stack)
 
-        mismatched_keys = set(expression) - set(pattern)
-        if mismatched_keys:
-            message = "unexpected keys: %s" % ", ".join(mismatched_keys)
-            raise UnificationFailure(message, stack)
+    # Literal pattern?
+    if expression == pattern:
+        return pattern
 
-        result = {}
+    # Give up
+    message = "'%r' does not match '%r'" % (expression, pattern)
+    raise UnificationFailure(message, stack)
 
-        for key, subpattern in pattern.iteritems():
-            optional_key, default_value = False, None
+#
+# Private for unify
+#
 
-            if isinstance(subpattern, _OptionalPattern):
-                optional_key, default_value = True, subpattern.default
-                subpattern = subpattern.pattern
+def keyable(object):
+    """Checks whether an object is an 'object' for `unify`."""
+    return hasattr(object, '__getattribute__') \
+        or hasattr(object, '__getattr__')
 
-            if key in expression:
-                result[key] = unify(expression[key], subpattern, stack + [key])
 
-            elif optional_key:
-                result[key] = default_value
+def iterable(object):
+    """Checks whether an object is a 'sequence' for `unify`."""
+    return hasattr(object, '__iter__')
 
-            else:
-                if isinstance(subpattern, dict):
-                    result[key] = unify_dict({}, subpattern, stack + [key])
 
-                elif isinstance(subpattern, list):
-                    result[key] = unify_list([], subpattern, stack + [key])
+def unify_dict(object, dict_pattern, stack):
+    """Unifies an object.
 
-                else:
-                    message = "missing required key '%s'" % key
-                    raise UnificationFailure(message, stack)
-
-        return result
-
-    def unify_list(expression, pattern, stack):
-        if not iterable(expression):
-            message = "'%r' is not a sequence" % expression
-            raise UnificationFailure(message, stack)
-
-        def infinite_zip(subitems, subpatterns):
-            subpatterns_iter = iter(subpatterns)
-
-            for subitem in subitems:
-                try:
-                    subpattern = next(subpatterns_iter)
-                except StopIteration:
-                    subpatterns_iter = iter(subpatterns)
-                    try:
-                        subpattern = next(subpatterns_iter)
-                    except StopIteration:
-                        message = "sequence is not empty"
-                        raise UnificationFailure(message, stack)
-
-                yield subitem, subpattern
-
-        result = []
-
-        for subitem, subpattern in infinite_zip(expression, pattern):
-            result.append(unify(subitem, subpattern, stack))
-
-        return result
-
-    def unify_tuple(expression, pattern, stack):
-        if not iterable(expression):
-            message = "'%r' is not a sequence" % expression
-            raise UnificationFailure(message, stack)
-
-        def strict_zip(subitems, subpatterns):
-            subpatterns_iter = iter(subpatterns)
-
-            for subitem in subitems:
-                try:
-                    subpattern = next(subpatterns_iter)
-                except StopIteration:
-                    message = "too many values: %r" % subitems
-                    raise UnificationFailure(message, stack)
-
-                yield subitem, subpattern
-
-            try:
-                next(subpatterns_iter)
-            except StopIteration:
-                pass
-            else:
-                message = "too few values: %r" % subitems
-                raise UnificationFailure(message, stack)
-
-        result = []
-
-        for subitem, subpattern in strict_zip(expression, pattern):
-            result.append(unify(subitem, subpattern, stack))
-
-        return tuple(result)
-
-    def unify_predicate(expression, pattern, stack):
-        try:
-            return pattern(expression)
-        except ValueError as match_failure:
-            raise UnificationFailure(str(match_failure), stack)
-
-    def unify(expression, pattern, stack):
-        if isinstance(pattern, dict):
-            return unify_dict(expression, pattern, stack)
-
-        if isinstance(pattern, list):
-            return unify_list(expression, pattern, stack)
-
-        if isinstance(pattern, tuple):
-            return unify_tuple(expression, pattern, stack)
-
-        if callable(pattern):
-            return unify_predicate(expression, pattern, stack)
-
-        if expression == pattern:
-            return pattern
-
-        message = "'%r' does not match '%r'" % (expression, pattern)
+    Every key of the object must be present in the pattern. Value of every key
+    present in the object must match the specified subpattern. If a key is
+    missing in the object, it can be replaced with a default value. The defult
+    values are either explicitly specified by optional(), or implicitly assumed
+    for objects (empty dict) and sequences (empty list). If there is no default
+    value then a match failure occurs.
+    """
+    if not keyable(object) or not iterable(object):
+        message = "'%r' is not an object" % object
         raise UnificationFailure(message, stack)
 
+    mismatched_keys = set(object) - set(dict_pattern)
+    if mismatched_keys:
+        message = "unexpected keys: " + ", ".join(mismatched_keys)
+        raise UnificationFailure(message, stack)
+
+    result = {}
+
+    for key, subpattern in dict_pattern.iteritems():
+        optional_key, default_value = False, None
+
+        if isinstance(subpattern, _OptionalPattern):
+            optional_key, default_value = True, subpattern.default
+            subpattern = subpattern.pattern
+
+        if key in object:
+            result[key] = unify(object[key], subpattern, stack + [key])
+
+        elif optional_key:
+            result[key] = default_value
+
+        else:
+            if isinstance(subpattern, dict):
+                result[key] = unify_dict({}, subpattern, stack + [key])
+
+            elif isinstance(subpattern, list):
+                result[key] = unify_list([], subpattern, stack + [key])
+
+            else:
+                message = "missing required key '%s'" % key
+                raise UnificationFailure(message, stack)
+
+    return result
+
+
+def unify_list(sequence, list_pattern, stack):
+    """Unifies a sequence of indefinite length.
+
+    The pattern here describes a sequence of items that must be repeating. For
+    example [integer, string] would match [1, "2", 3, "4", 5]. The most common
+    option is just one pattern element. There is also a special case of empty
+    pattern [] which matches only empty sequences.
+    """
+    if not iterable(sequence):
+        message = "'%r' is not a sequence" % sequence
+        raise UnificationFailure(message, stack)
+
+    if sequence and not list_pattern:
+        raise UnificationFailure("'%r' is not empty" % sequence, stack)
+
+    return [unify(subitem, subpattern, stack)
+            for subitem, subpattern
+            in izip(sequence, repeated(list_pattern))]
+
+
+def unify_tuple(sequence, tuple_pattern, stack):
+    """Unifies a sequence of fixed length.
+
+    The sequence must have exactly the same length as the pattern and each
+    element must match the corresponding subpattern.
+    """
+    if not iterable(sequence):
+        message = "'%r' is not a sequence" % sequence
+        raise UnificationFailure(message, stack)
+
+    # Flat it out
+    sequence = tuple(sequence)
+
+    if len(sequence) != len(tuple_pattern):
+        message = "'%r' has incorrect length (expected %d)" % \
+                (sequence, len(tuple_pattern))
+        raise UnificationFailure(message, stack)
+
+    return tuple(unify(subitem, subpattern, stack)
+            for subitem, subpattern 
+            in zip(sequence, tuple_pattern))
+
+
+def unify_predicate(expression, predicate, stack):
+    """Unifies an expression against an arbitrary predicate.
+
+    The predicate either returns a unified value, or raises a ValueError that
+    describes the reason why the match failed.
+    """
     try:
-        return unify(expression, pattern, [])
-    except UnificationFailure as failure:
-        raise ValueError(str(failure))
+        return predicate(expression)
+    except ValueError as match_failure:
+        raise UnificationFailure(str(match_failure), stack)
