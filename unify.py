@@ -9,7 +9,7 @@ from utils import repeated
 def boolean(value):
     """Matches booleans."""
     if not isinstance(value, bool):
-        raise ValueError("'%r' is not a boolean" % value)
+        raise ValueError("%r is not a boolean" % value)
 
     return value
 
@@ -17,7 +17,7 @@ def boolean(value):
 def string(value):
     """Matches strings (both ASCII and Unicode)."""
     if not isinstance(value, str) and not isinstance(value, unicode):
-        raise ValueError("'%r' is not a string" % value)
+        raise ValueError("%r is not a string" % value)
 
     return value
 
@@ -25,7 +25,7 @@ def string(value):
 def integer(value):
     """Matches integers."""
     if not isinstance(value, int) and not isinstance(value, long):
-        raise ValueError("'%r' is not an integer" % value)
+        raise ValueError("%r is not an integer" % value)
 
     return value
 
@@ -57,7 +57,7 @@ def either(*patterns):
             except ValueError: # no match
                 continue
         else:
-            raise ValueError("'%r' does not match any pattern" % expression)
+            raise ValueError("%r does not match any pattern" % expression)
 
     return match_either
 
@@ -147,7 +147,7 @@ def unify(expression, pattern, stack=[]):
         return pattern
 
     # Give up
-    message = "'%r' does not match '%r'" % (expression, pattern)
+    message = "%r does not match %r" % (expression, pattern)
     raise UnificationFailure(message, stack)
 
 #
@@ -176,7 +176,7 @@ def unify_dict(object, dict_pattern, stack):
     value then a match failure occurs.
     """
     if not keyable(object) or not iterable(object):
-        message = "'%r' is not an object" % object
+        message = "%r is not an object" % object
         raise UnificationFailure(message, stack)
 
     mismatched_keys = set(object) - set(dict_pattern)
@@ -222,11 +222,11 @@ def unify_list(sequence, list_pattern, stack):
     pattern [] which matches only empty sequences.
     """
     if not iterable(sequence):
-        message = "'%r' is not a sequence" % sequence
+        message = "%r is not a sequence" % sequence
         raise UnificationFailure(message, stack)
 
     if sequence and not list_pattern:
-        raise UnificationFailure("'%r' is not empty" % sequence, stack)
+        raise UnificationFailure("%r is not empty" % sequence, stack)
 
     return [unify(subitem, subpattern, stack)
             for subitem, subpattern
@@ -240,14 +240,14 @@ def unify_tuple(sequence, tuple_pattern, stack):
     element must match the corresponding subpattern.
     """
     if not iterable(sequence):
-        message = "'%r' is not a sequence" % sequence
+        message = "%r is not a sequence" % sequence
         raise UnificationFailure(message, stack)
 
     # Flat it out
     sequence = tuple(sequence)
 
     if len(sequence) != len(tuple_pattern):
-        message = "'%r' has incorrect length (expected %d)" % \
+        message = "%r has incorrect length (expected %d)" % \
                 (sequence, len(tuple_pattern))
         raise UnificationFailure(message, stack)
 
