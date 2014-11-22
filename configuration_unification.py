@@ -62,6 +62,105 @@ def positive_integer(value):
     return value
 
 #
+# Procedural helpers
+#
+
+def either_key(*keys):
+    """Asserts that an object contains not more than one of the given keys."""
+    def matcher(object):
+        defined_keys = \
+            filter(lambda key: (key in object) and (object[key] is not None),
+                   keys)
+
+        if len(defined_keys) > 1:
+            defined_keys = ", ".join(map(repr, defined_keys))
+            raise ValueError("cannot use %s simulatenously" % defined_keys)
+
+    return matcher
+
+
+def unify_color_spec(color, mode):
+    """Unifies full and short forms of color specs."""
+    foreground, background = None, None
+
+    if color:
+        if isinstance(color, dict):
+            foreground = color["foreground"]
+            background = color["background"]
+        else:
+            if mode == "brackets":
+                foreground = color
+            else:
+                background = color
+
+    if (foreground is None) and (background is None):
+        return None
+    else:
+        return foreground, background
+
+
+def unify_color(scope_object):
+    """Unifies color specs in single-colored scope settings."""
+    scope_object["color"] = \
+        unify_color_spec(scope_object["color"], scope_object["mode"])
+
+
+def unify_colors(scope_object):
+    """Unifies color specs in multi-colored scope settings."""
+    if scope_object["color"] is not None:
+        colors = [scope_object["color"]]
+    elif scope_object["colors"] is not None:
+        colors = scope_object["colors"]
+    else:
+        colors = []
+
+    mode = scope_object["mode"]
+
+    scope_object["colors"] = \
+        filter(lambda color: color is not None,
+            map(lambda color: unify_color_spec(color, mode), colors))
+
+    del scope_object["color"]
+
+
+def disable_if_no_color(scope_object):
+    """Disables scope highlighting if it has no defined colors."""
+    if not scope_object["color"]:
+        scope_object["enabled"] = False
+
+
+def disable_if_no_colors(scope_object):
+    """Disables scope highlighting if it has no defined colors."""
+    if not scope_object["colors"]:
+        scope_object["enabled"] = False
+
+
+def unify_syntax(override_object):
+    """Unifies syntax specs in language overrides."""
+    syntax = override_object["syntax"]
+
+    if isinstance(syntax, list):
+        if not syntax:
+            raise ValueError('"syntax" list cannot be empty')
+    else:
+        syntax = [syntax]
+
+    override_object["syntax"] = syntax
+
+
+def reformat_overrides(configuration_object):
+    """Rearranges the plain list of overrides to be a language-keyed dict."""
+    overrides = {}
+
+    for override in configuration_object["overrides"]:
+        for syntax in override["syntax"]:
+            overrides[syntax] = override
+        del override["syntax"]
+
+    configuration_object["overrides"] = overrides
+
+
+#
 # Patterns
 #
 
@@ -96,6 +195,7 @@ configuration_pattern = \
         "enabled": optional(boolean, True),
         "mode":    optional(either("none", "brackets", "expression"), "none"),
         "color":   optional(color_pattern),
+        "__extra__": [unify_color, disable_if_no_color]
     },
     "secondary":
     {
@@ -104,6 +204,8 @@ configuration_pattern = \
         "color":   optional(color_pattern),
         "colors":  optional([color_pattern]),
         "depth limit": optional(positive_integer),
+        "__extra__": [either_key("color", "colors"),
+            unify_colors, disable_if_no_colors]
     },
     "offside":
     {
@@ -112,6 +214,8 @@ configuration_pattern = \
         "color":   optional(color_pattern),
         "colors":  optional([color_pattern]),
         "depth limit": optional(positive_integer),
+        "__extra__": [either_key("color", "colors"),
+            unify_colors, disable_if_no_colors]
     },
     "adjacent":
     {
@@ -119,12 +223,14 @@ configuration_pattern = \
         "mode":    optional(either("none", "brackets", "expression"), "none"),
         "color":   optional(color_pattern),
         "chirality": optional(either("none", "left", "right", "both"), "none"),
+        "__extra__": [unify_color, disable_if_no_color]
     },
     "inconsistent":
     {
         "enabled": optional(boolean, True),
         "mode":    optional(either("none", "brackets", "expression"), "none"),
         "color":   optional(color_pattern),
+        "__extra__": [unify_color, disable_if_no_color]
     },
     "scope blacklist": [string],
     "overrides":
@@ -138,13 +244,18 @@ configuration_pattern = \
             "scope blacklist":            optional([string]),
             "additional scope blacklist": optional([string]),
 
+            "__extra__": [unify_syntax,
+                either_key("brackets", "additional brackets"),
+                either_key("scope blacklist", "additional scope blacklist")],
+
             "enabled": optional(boolean),
 
             "primary":
             {
                 "enabled": optional(boolean),
                 "mode":    optional(either("none", "brackets", "expression")),
-                "color":   optional(color_pattern)
+                "color":   optional(color_pattern),
+                "__extra__": [unify_color]
             },
             "secondary":
             {
@@ -153,6 +264,7 @@ configuration_pattern = \
                 "color":   optional(color_pattern),
                 "colors":  optional([color_pattern]),
                 "depth limit": optional(positive_integer),
+                "__extra__": [either_key("color", "colors"), unify_colors]
             },
             "offside":
             {
@@ -161,22 +273,26 @@ configuration_pattern = \
                 "color":   optional(color_pattern),
                 "colors":  optional([color_pattern]),
                 "depth limit": optional(positive_integer),
+                "__extra__": [either_key("color", "colors"), unify_colors]
             },
             "adjacent":
             {
                 "enabled": optional(boolean),
                 "mode":    optional(either("none", "brackets", "expression")),
                 "color":   optional(color_pattern),
-                "chirality": optional(either("none", "left", "right", "both"))
+                "chirality": optional(either("none", "left", "right", "both")),
+                "__extra__": [unify_color]
             },
             "inconsistent":
             {
                 "enabled": optional(boolean),
                 "mode":    optional(either("none", "brackets", "expression")),
-                "color":   optional(color_pattern)
+                "color":   optional(color_pattern),
+                "__extra__": [unify_color]
             }
         }
-    ]
+    ],
+    "__extra__": [reformat_overrides]
 }
 
 #

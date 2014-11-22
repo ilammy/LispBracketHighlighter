@@ -174,6 +174,12 @@ def unify_dict(object, dict_pattern, stack):
     values are either explicitly specified by optional(), or implicitly assumed
     for objects (empty dict) and sequences (empty list). If there is no default
     value then a match failure occurs.
+
+    Also there is a special pattern key "__extra__" which contains a sequence
+    of procedures that are applied to the resulting dict after all other keys
+    are processed. You can use this key to do arbitrary postprocessing of the
+    unification result. The procedures receive the dict as their only argument,
+    their return value is ignored, they can raise ValueError to signal errors.
     """
     if not keyable(object) or not iterable(object):
         message = "%r is not an object" % object
@@ -188,6 +194,9 @@ def unify_dict(object, dict_pattern, stack):
 
     for key, subpattern in dict_pattern.iteritems():
         optional_key, default_value = False, None
+
+        if key == "__extra__":
+            continue # process in the end
 
         if isinstance(subpattern, _OptionalPattern):
             optional_key, default_value = True, subpattern.default
@@ -209,6 +218,13 @@ def unify_dict(object, dict_pattern, stack):
             else:
                 message = "missing required key '%s'" % key
                 raise UnificationFailure(message, stack)
+
+    if "__extra__" in dict_pattern:
+        try:
+            for transformer in dict_pattern["__extra__"]:
+                transformer(result)
+        except ValueError as error:
+            raise UnificationFailure(str(error), stack)
 
     return result
 
